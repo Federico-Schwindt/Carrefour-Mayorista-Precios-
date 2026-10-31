@@ -74,7 +74,7 @@ function branchSource(branch) {
 
 // URLs abreviadas para que el archivo pese menos (la web las reconstruye)
 const slimUrl = (u) => (u ? u.replace(/^https:\/\/www\.carrefour\.com\.ar\//, '').replace(/\/p$/, '') : u);
-const slimImg = (u) => (u ? u.replace(/^https:\/\/carrefourar\.vteximg\.com\.br\/arquivos\/ids\//, '') : u);
+const slimImg = (u) => (u ? u.replace(/^https:\/\/carrefourar\.(vteximg\.com\.br|vtexassets\.com)\/arquivos\/ids\//, '') : u);
 
 function compactProduct(p, prevItem, nowIso) {
   return {
@@ -154,17 +154,21 @@ function toAlert(src, p, { type, types, reasons, metrics: m }, retail, ts, nowMi
 /** Detección con historial + avisos + guardado para una fuente que ya leyó su catálogo. */
 async function processSource(src, current, ctx) {
   const { db, nowIso, nowMin, now } = ctx;
-  const [prevProducts, history, prevAlerts] = await Promise.all([
-    readJson(src.files.products, null),
-    readJson(src.files.history, {}),
-    readJson(src.files.alerts, { alerts: [] }),
-  ]);
+  const [prevProducts, history, prevAlerts] = ctx.reset
+    ? [null, {}, { alerts: [] }]
+    : await Promise.all([readJson(src.files.products, null), readJson(src.files.history, {}), readJson(src.files.alerts, { alerts: [] })]);
   const prevItems = prevProducts?.items ? Object.fromEntries(prevProducts.items.map((i) => [i.ean, i])) : null;
   const prevCount = prevProducts?.items?.length || 0;
   const warnings = [...(ctx.warnings || [])];
   if (prevCount > 0 && current.size < prevCount * config.guards.minCatalogRatio) warnings.push(`Lectura parcial: ${current.size} de ~${prevCount} productos.`);
 
   const isMay = src.kind === 'mayorista';
+  // Si cambió la tienda del minorista, los precios no son comparables: historial nuevo
+  if (!isMay && prevProducts && (prevProducts.store || null) !== (ctx.store || null)) {
+    log.warn(`[min] Cambió la tienda (${prevProducts.store || 'online general'} → ${ctx.store || 'online general'}): el historial minorista empieza de nuevo.`);
+    warnings.push(`Ahora se leen los precios de ${ctx.store || 'la venta online general'}: el historial minorista empieza de nuevo.`);
+    return processSource(src, current, { ...ctx, reset: true, warnings });
+  }
   let retailFresh = new Set();
   if (isMay && !ctx.retailRefreshed) {
     // Margen de reventa: completamos precios minoristas de los productos que faltan
@@ -230,7 +234,7 @@ async function processSource(src, current, ctx) {
   const keep = new Set(items.map((i) => i.ean));
   for (const ean of Object.keys(history)) if (!keep.has(ean)) delete history[ean];
   items.sort((a, b) => a.n.localeCompare(b.n, 'es'));
-  const meta = isMay ? { branch: src.name } : { categories: config.minorista.categories };
+  const meta = isMay ? { branch: src.name } : { categories: config.minorista.categories, store: ctx.store || null };
   await writeJson(src.files.history, history);
   await writeJson(src.files.products, { updatedAt: nowIso, source: src.kind, sourceId: src.id, ...meta, count: items.length, items });
   await writeJson(src.files.alerts, { updatedAt: nowIso, source: src.kind, sourceId: src.id, alerts: [...newAlerts, ...(prevAlerts.alerts || [])].slice(0, config.alertsKeep) });
@@ -265,7 +269,8 @@ async function readMinorista(db, nowIso) {
     db.retail[p.realEan] = { found: true, available: true, price: p.price, listPrice: p.listPrice, name: p.name, url: p.url, ts: nowIso };
   }
   const warnings = catalog.failed.length ? [`Subcategorías con error: ${catalog.failed.slice(0, 8).join(', ')}${catalog.failed.length > 8 ? '…' : ''}`] : [];
-  return { current, warnings };
+  if (config.minorista.store && !catalog.store) warnings.push(`No se pudieron leer los precios de ${config.minorista.storeName}: se muestra el precio online general.`);
+  return { current, warnings, store: catalog.store };
 }
 
 async function noteFailure(db, id, label, err) {
@@ -442,6 +447,11 @@ async function main() {
     delete db.status.sources.minorista;
   }
   db.state.cookieBranch ||= {};
+  // Los precios minoristas guardados para el margen de reventa son de una tienda: si cambia, se descartan
+  if ((db.state.retailStore ?? null) !== (config.minorista.store || null)) {
+    db.retail = {};
+    db.state.retailStore = config.minorista.store || null;
+  }
   const wantMay = !ONLY || ONLY === 'mayorista';
   const wantMin = config.minorista.enabled && (!ONLY || ONLY === 'minorista');
   log.info(`Inicio corrida${DRY ? ' · DRY-RUN' : ''} · cookies mayoristas: ${config.cookies.length} · minorista: ${wantMin ? 'sí' : 'no'}`);
@@ -501,15 +511,15 @@ async function main() {
       }
     }
   }
-  if (minData) datasets.push({ src: MINORISTA, current: minData.current, warnings: minData.warnings });
+  if (minData) datasets.push({ src: MINORISTA, current: minData.current, warnings: minData.warnings, store: minData.store });
 
   // 3) Procesar cada fuente (historial, alertas, guardado)
   for (const d of datasets) {
     try {
-      const r = await processSource(d.src, d.current, { ...ctx, warnings: d.warnings, retailRefreshed: ctx.retailRefreshed });
+      const r = await processSource(d.src, d.current, { ...ctx, warnings: d.warnings, store: d.store, retailRefreshed: ctx.retailRefreshed });
       if (d.src.kind === 'mayorista') ctx.retailRefreshed = true;
       if (d.session && !DRY) await saveSession(d.session.jar, d.session.index, config.cookies.find((c) => c.var === d.session.var)?.value);
-      await noteSuccess(db, d.src, r, d.session ? { cookieVar: d.session.var, sessionSource: d.session.source } : { categories: config.minorista.categories });
+      await noteSuccess(db, d.src, r, d.session ? { cookieVar: d.session.var, sessionSource: d.session.source } : { categories: config.minorista.categories, store: d.store || null });
       run.results[d.src.id] = { ok: true, products: r.products, changes: r.changes, alerts: r.alerts, sent: r.sent };
     } catch (err) {
       log.error(`[${d.src.id}] ${err.stack || err.message}`);

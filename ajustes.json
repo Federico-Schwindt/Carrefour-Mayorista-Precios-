@@ -11,6 +11,8 @@
     "banera", "cambiador", "triciclo", "bicicleta", "monopatin", "pileta", "inflable"
   ],
 
+  "minorista_tienda": { "id": "carrefourar0240", "nombre": "Hiper Gualeguaychú" },
+
   "minorista_rubros": [161, 222, 255, 292, 336, 347, 359, 402, 451, 471],
 
   "avisos": {

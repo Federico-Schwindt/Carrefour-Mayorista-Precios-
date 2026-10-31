@@ -5,7 +5,7 @@ Monitor automático con **fuentes separadas**, cada una con sus propias alertas,
 | | Fuente | Login | Productos |
 |---|---|---|---|
 | 🏪 **MAYORISTA** | comerciante.carrefour.com.ar — **una por sucursal Maxi** (Gualeguaychú, Zárate, Escobar…) | sí (una cookie por sucursal) | ~5.000 por sucursal |
-| 🛒 **MINORISTA** | www.carrefour.com.ar (API pública) | **no** | ~12.000 con stock (supermercado) |
+| 🛒 **MINORISTA** | www.carrefour.com.ar con precios de la tienda **Hiper Gualeguaychú** (retiro en tienda) | **no** | ~10.500 con stock (supermercado) |
 
 Cada **30 minutos** lee todo, guarda el historial de precios y te avisa al celular. Cada aviso arranca con
 **🏪 MAYORISTA · Maxi ZARATE** o **🛒 MINORISTA** para que nunca se mezclen.
@@ -115,6 +115,7 @@ Opcionales: `NTFY_TOPIC` (avisos push con la app **ntfy**, sin registrarse: eleg
 | `NOTIFY_TYPES` | `error,reventa,baja,minimo` | Qué tipos mandan push (el resto sólo en la web) |
 | `NOTIFY_MAX_PER_RUN` | `25` | Tope de avisos por corrida |
 | `MIN_ENABLED` | `true` | Activar el monitor minorista |
+| `minorista_tienda` (en `ajustes.json`) | `carrefourar0240` · Hiper Gualeguaychú | Tienda cuyos precios se leen: cada tienda de carrefour.com.ar tiene los suyos. Vacío = precio online general |
 | `MIN_CATEGORIES` | `161,222,255,292,336,347,359,402,451,471` | Rubros de carrefour.com.ar: supermercado (ver `src/config.js`; sumá `3` para Tecnología, `71` Hogar…) |
 | `MIN_ALERT_DROP_PCT` | `0.3` | Baja mínima para “baja fuerte” en minorista |
 | `MIN_NOTIFY_TYPES` | `error,baja,minimo` | Qué alertas minoristas mandan push |

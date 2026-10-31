@@ -30,10 +30,12 @@ const vtex = (ean, price) => ({
   productId: ean.slice(-4),
   productName: `Producto minorista ${ean.slice(-3)} 500 grs`,
   brand: 'Marca',
-  link: `http://retail/${ean}/p`,
+  link: `/${ean}/p`,
   categories: ['/Almacén/Aceites/Aceites comunes/', '/Almacén/Aceites/', '/Almacén/'],
-  items: [{ itemId: ean.slice(-5), ean, images: [{ imageUrl: `http://img/${ean}.jpg?v=1` }], sellers: [{ sellerId: '1', sellerName: 'CARREFOUR', commertialOffer: { Price: price, ListPrice: price, AvailableQuantity: 10 } }] }],
+  properties: [{ name: 'Cantidad Maxima Permitida', values: ['12'] }, { name: 'Gramaje de unidad de consumo', values: ['500.00'] }, { name: 'Gramaje de unidad de medida', values: ['GRM'] }],
+  items: [{ itemId: ean.slice(-5), ean, images: [{ imageUrl: `http://img/${ean}.jpg?v=1` }], sellers: [{ sellerId: '1', sellerName: 'CARREFOUR', commertialOffer: { Price: price, ListPrice: price, AvailableQuantity: 10, discountHighlights: [] } }] }],
 });
+const searchCalls = [];
 const ntfy = [];
 let server;
 let base;
@@ -61,9 +63,20 @@ before(async () => {
       if (m === 'countProducts') return res.end(String(list.length));
       return res.end(list.map((p) => card(p, branch)).join('\n'));
     }
-    if (u.pathname.endsWith('/category/tree/3')) {
+    if (/\/category\/tree\/\d$/.test(u.pathname)) {
       res.setHeader('Content-Type', 'application/json');
-      return res.end(JSON.stringify([{ id: 161, name: 'Almacén', children: [{ id: 162, name: 'Aceites', children: [] }] }, { id: 3, name: 'Electro', children: [] }]));
+      return res.end(JSON.stringify([{ id: 161, name: 'Almacén', url: 'http://retail/almacen', children: [{ id: 162, name: 'Aceites', children: [] }] }, { id: 3, name: 'Electro', url: 'http://retail/electro', children: [] }]));
+    }
+    // Búsqueda con la región de la tienda (precio de Hiper Gualeguaychú)
+    if (u.pathname.startsWith('/api/io/_v/api/intelligent-search/product_search')) {
+      searchCalls.push(u.searchParams.get('regionId'));
+      const count = Number(u.searchParams.get('count'));
+      const page = Number(u.searchParams.get('page'));
+      const query = u.searchParams.get('query');
+      let all = [...minPrices].map(([e, p]) => vtex(e, p));
+      if (query) all = all.filter((p) => p.items[0].ean === query);
+      res.setHeader('Content-Type', 'application/json');
+      return res.end(JSON.stringify({ recordsFiltered: all.length, products: all.slice((page - 1) * count, page * count) }));
     }
     if (u.pathname.startsWith('/api/catalog_system') && u.searchParams.getAll('fq').some((f) => f.startsWith('C:'))) {
       const from = Number(u.searchParams.get('_from'));
@@ -147,6 +160,9 @@ test('ciclo completo: sucursales, minorista, oportunidades, migración y fallas'
   assert.equal(read(dir, 'may-gualeguaychu-products.json').items.length, 60);
   assert.equal(read(dir, 'may-zarate-products.json').items.length, 60);
   assert.equal(read(dir, 'min-products.json').items.length, 301);
+  assert.equal(read(dir, 'min-products.json').store, 'Hiper Gualeguaychú', 'precios de la tienda de Gualeguaychú');
+  assert.ok(searchCalls.includes(Buffer.from('SW#carrefourar0240').toString('base64')), 'usa la región de la tienda');
+  assert.equal(read(dir, 'min-products.json').items.find((i) => i.ean === '7791000000000').lim, 12, 'límite por compra');
   const g9 = read(dir, 'may-gualeguaychu-products.json').items.find((i) => i.ean === '7790000000009');
   assert.equal(g9.e, 1090, 'lee el formato 1,090.00');
   assert.equal(g9.lp, 4000, 'lee el precio tachado');

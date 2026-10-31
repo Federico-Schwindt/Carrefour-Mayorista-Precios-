@@ -2,8 +2,15 @@
 // Sirve para estimar el margen de reventa y detectar errores groseros.
 import { config } from './config.js';
 import { request, mapLimit, sleep } from './http.js';
+import { lookupStorePrice } from './retail-catalog.js';
 
 export async function lookupRetail(ean) {
+  if (config.minorista.store) {
+    const n = await lookupStorePrice(ean);
+    const ts = new Date().toISOString();
+    if (!n) return { found: false, ts };
+    return { found: true, available: true, price: n.price, listPrice: n.listPrice, name: n.name, url: n.url, ts };
+  }
   const url = `${config.retailApi}?fq=alternateIds_Ean:${encodeURIComponent(ean)}`;
   const data = await request(url, { expect: 'json', retries: 2, timeoutMs: 20000 });
   const now = new Date().toISOString();

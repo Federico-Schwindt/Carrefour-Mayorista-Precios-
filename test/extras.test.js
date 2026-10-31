@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildExcluder } from '../src/filters.js';
 import { promoFor, todayAR } from '../src/promos.js';
-import { normalizeRetailProduct } from '../src/retail-catalog.js';
+import { normalizeRetailProduct, cleanPromo } from '../src/retail-catalog.js';
 import { unitQty } from '../src/detect.js';
 
 test('exclusiones: precio máximo por unidad y palabras completas', () => {
@@ -48,12 +48,32 @@ test('minorista: límite de unidades y precio oficial por kg', () => {
     link: 'https://www.carrefour.com.ar/yerba/p',
     categories: ['/Desayuno/Yerba/Yerba/'],
     'Cantidad Maxima Permitida': ['8'],
-    'Precio x unidad': ['($5,700.00 x 1 K.)'],
-    pricePerUnit: ['5700.00'],
+    'Precio x unidad': ['($9,999.00 x 1 K.)'],
+    'Gramaje de unidad de consumo': ['1000.00'],
+    'Gramaje de unidad de medida': ['GRM'],
     items: [{ itemId: '1', ean: '7790387014617', images: [], sellers: [{ sellerId: '1', sellerName: 'CARREFOUR', commertialOffer: { Price: 5700, ListPrice: 5700, AvailableQuantity: 99 } }] }],
   });
   assert.equal(p.limit, 8);
   assert.equal(p.unitPrice, 5700);
   assert.equal(p.unit, 'kg');
   assert.deepEqual(unitQty(p), { qty: 1, unit: 'kg' });
+});
+
+test('minorista: promo de la tienda legible y precio por kg con el precio de la tienda', () => {
+  assert.equal(cleanPromo('PROMO-20% Off Mi Crf Max 24 unidades -Reg-1-20-Black30 al 11/11'), '20% Off Mi Crf Max 24 unidades');
+  assert.equal(cleanPromo('PROMO-Mi CRF -mfl-1-6-Dto de 6% Doble Precio'), 'Mi CRF 6%');
+  const [p] = normalizeRetailProduct({
+    productName: 'Bebida isotónica Gatorade Cool Blue 1,25 lts',
+    link: '/bebida-isotonica-gatorade-cool-blue-1-25-lts-501480/p',
+    categories: ['/Bebidas/Bebidas isotónicas/', '/Bebidas/'],
+    properties: [{ name: 'Cantidad Maxima Permitida', values: ['24'] }, { name: 'Precio x unidad', values: ['($2,200.00 x 1 L.)'] }, { name: 'Gramaje de unidad de consumo', values: ['1250.00'] }, { name: 'Gramaje de unidad de medida', values: ['CM3'] }],
+    items: [{ itemId: '3743', ean: '7792170110704', images: [], sellers: [{ sellerId: '1', sellerName: 'CARREFOUR', commertialOffer: { Price: 3759.2, ListPrice: 4699, AvailableQuantity: 10000, discountHighlights: [{ name: 'PROMO-20% Off Mi Crf Max 24 unidades -Reg-1-20-Black30 al 11/11' }] } }] }],
+  });
+  assert.equal(p.price, 3759.2);
+  assert.equal(p.listPrice, 4699);
+  assert.equal(p.limit, 24);
+  assert.equal(p.promo, '20% Off Mi Crf Max 24 unidades');
+  assert.equal(p.unit, 'l');
+  assert.equal(p.unitPrice, 3007.36, 'precio por litro con el precio de la tienda (como muestra la web)');
+  assert.equal(p.url, 'https://www.carrefour.com.ar/bebida-isotonica-gatorade-cool-blue-1-25-lts-501480/p');
 });

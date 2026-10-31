@@ -109,7 +109,7 @@ const repo = (() => {
 const fullImg = (x) => {
   if (!x) return null;
   const u = /^https?:/.test(x) ? x : `https://carrefourar.vteximg.com.br/arquivos/ids/${x}`;
-  return u.replace(/(vteximg\.com\.br\/arquivos\/ids\/)(\d+)\//, '$1$2-240-240/');
+  return u.replace(/((?:vteximg\.com\.br|vtexassets\.com)\/arquivos\/ids\/)(\d+)\//, '$1$2-240-240/');
 };
 const fullUrl = (x) => (!x ? null : /^https?:/.test(x) ? x : `https://www.carrefour.com.ar/${x}/p`);
 const proxyImg = (u) => `https://wsrv.nl/?url=${encodeURIComponent(u.replace(/^https?:\/\//, ''))}&w=240&h=240&fit=contain&bg=white&output=jpg`;
@@ -290,6 +290,7 @@ async function loadSource(id) {
   d.products = products.value?.items || [];
   d.byEan = new Map(d.products.map((p) => [p.ean, p]));
   d.updatedAt = products.value?.updatedAt || null;
+  d.store = products.value?.store || null;
   d.alerts = (alerts.value?.alerts || []).map((a) => ({ ...a, sourceId: a.sourceId || id }));
   d.loaded = true;
   return d;
@@ -358,7 +359,7 @@ function renderHeader() {
     : '';
   const st = S.status?.sources?.[curId()];
   const n = st?.products ? ` · ${fmt(st.products)} productos` : '';
-  $('#subline').textContent = SET.kind === 'mayorista' ? `Maxi ${title(srcOf(SET.branch)?.name || '')}${n}` : `carrefour.com.ar · precio online${n}`;
+  $('#subline').textContent = SET.kind === 'mayorista' ? `Maxi ${title(srcOf(SET.branch)?.name || '')}${n}` : `carrefour.com.ar · ${D().store || 'precio online'}${n}`;
   const btn = $('#statusBtn');
   btn.classList.remove('is-ok', 'is-warn', 'is-bad');
   if (!st?.lastSuccess) {
@@ -790,7 +791,7 @@ async function openDetail(id, ean) {
         <div><button type="button" class="btn btn--ghost" data-dl="product">${icon('download')}Descargar historial</button></div>
       </div>
       ${alerts.length ? `<div class="d-sec"><h3>Alertas</h3><ul class="row__why">${alerts.map((a) => `<li><b>${esc(TYPE[a.type]?.label || a.type)}</b> · ${esc(fmtDate(a.ts))} · ${ars(a.price)} — ${esc((a.reasons || [])[0] || '')}</li>`).join('')}</ul></div>` : ''}
-      ${isMay ? '' : '<p class="group__hint" style="margin:0">Es el precio online general de carrefour.com.ar. Si en la web tenés elegida una tienda para retirar o te envían desde una sucursal, el precio puede ser distinto: cada tienda tiene el suyo.</p>'}
+      ${isMay ? '' : `<p class="group__hint" style="margin:0">${d.store ? `Precio de carrefour.com.ar en <b>${esc(d.store)}</b> (retiro en la tienda). Es el mismo que ves en la web con esa tienda elegida.` : 'Precio online general de carrefour.com.ar: si en la web elegís una tienda, puede ser distinto.'}</p>`}
       <p class="mono">${/^\d+$/.test(ean) ? `EAN ${esc(ean)} · ` : ''}${u ? `${ars(u.price)} por ${u.u} · ` : ''}visto ${esc(ago(v.l))}</p>`;
     if (series.length) drawChart(series, r?.price);
   };

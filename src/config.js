@@ -108,6 +108,10 @@ export const config = {
   // ---- MINORISTA: catálogo completo de carrefour.com.ar (público, sin login) ----
   minorista: {
     enabled: bool('MIN_ENABLED', true),
+    // Tienda cuyos precios se leen (cada tienda de carrefour.com.ar tiene los suyos).
+    // Vacío = precio online general.
+    store: process.env.MIN_STORE !== undefined ? str('MIN_STORE') : AJ.minorista_tienda?.id ?? 'carrefourar0240',
+    storeName: str('MIN_STORE_NAME', AJ.minorista_tienda?.nombre || 'Hiper Gualeguaychú'),
     // Rubros (id de categoría VTEX). Por defecto: supermercado (sin tecnología).
     // 161 Almacén · 222 Desayuno · 255 Bebidas · 292 Lácteos · 336 Panadería · 347 Congelados
     // 359 Limpieza · 402 Perfumería · 451 Mundo Bebé · 471 Mascotas
