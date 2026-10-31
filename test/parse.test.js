@@ -11,6 +11,11 @@ test('parseArs entiende formato argentino', () => {
   assert.equal(parseArs('12.5'), 12.5);
   assert.equal(parseArs('$ 2.450.000'), 2450000);
   assert.equal(parseArs('abc'), null);
+  // formato que usa el sitio
+  assert.equal(parseArs('$ 4,162.00'), 4162);
+  assert.equal(parseArs('5,249.00'), 5249);
+  assert.equal(parseArs('4,162'), 4162);
+  assert.equal(parseArs('12,5'), 12.5);
 });
 
 test('parseQuantity normaliza a kg / l / u', () => {
@@ -35,16 +40,22 @@ test('tarjetas públicas: precio privado', () => {
   assert.equal(a.private, true);
 });
 
-test('tarjetas logueadas: precio, promo por cantidad y precio tachado', () => {
-  const [a, b] = parseProductList(fx('list-logged-synthetic.html'));
-  assert.equal(a.price, 2780.9);
-  assert.equal(a.promoPrice, 2450.5);
-  assert.equal(a.promoMinQty, 3);
+test('tarjetas logueadas reales: formato 4,162.00, tachado, compra mínima y promo', () => {
+  const items = parseProductList(fx('list-logged.html'));
+  assert.equal(items.length, 4);
+  const by = Object.fromEntries(items.map((p) => [p.ean, p]));
+  const a = by['7793344904143'];
+  assert.equal(a.price, 1249);
+  assert.equal(a.minQty, 4);
+  assert.equal(a.pack, 12);
   assert.equal(a.promo, 'Folleto Maxi');
   assert.equal(a.private, false);
-  assert.equal(b.price, 2999);
-  assert.equal(b.listPrice, 3100);
-  assert.equal(b.promoPrice, null);
+  const c = by['7792798013975'];
+  assert.equal(c.price, 4630);
+  assert.equal(c.listPrice, 5249);
+  assert.equal(c.promo, 'Ofertón - Solo por hoy');
+  assert.equal(c.promoPrice, null, '"Llevando N o más" no es un precio aparte');
+  assert.equal(by['7798062548709'].promo, null);
 });
 
 test('parseMenu encuentra secciones', () => {

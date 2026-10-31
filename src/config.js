@@ -88,11 +88,11 @@ export const config = {
   // ---- MINORISTA: catálogo completo de carrefour.com.ar (público, sin login) ----
   minorista: {
     enabled: bool('MIN_ENABLED', true),
-    // Rubros (id de categoría VTEX). Por defecto: súper + electro.
+    // Rubros (id de categoría VTEX). Por defecto: supermercado (sin tecnología).
     // 161 Almacén · 222 Desayuno · 255 Bebidas · 292 Lácteos · 336 Panadería · 347 Congelados
-    // 359 Limpieza · 402 Perfumería · 451 Mundo Bebé · 471 Mascotas · 3 Electro y tecnología
-    // Otros: 71 Hogar · 605 Juguetería · 635 Automotor · 665 Aire libre · 563 Indumentaria
-    categories: str('MIN_CATEGORIES', '161,222,255,292,336,347,359,402,451,471,3').split(',').map((s) => s.trim()).filter(Boolean),
+    // 359 Limpieza · 402 Perfumería · 451 Mundo Bebé · 471 Mascotas
+    // Otros: 3 Electro y tecnología · 71 Hogar · 605 Juguetería · 635 Automotor · 665 Aire libre
+    categories: str('MIN_CATEGORIES', '161,222,255,292,336,347,359,402,451,471').split(',').map((s) => s.trim()).filter(Boolean),
     concurrency: num('MIN_CONCURRENCY', 3),
     delayMs: num('MIN_DELAY_MS', 250),
     // En minorista hay muchas promos: umbral de "baja fuerte" más alto

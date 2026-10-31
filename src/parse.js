@@ -1,19 +1,34 @@
 // Parser del HTML que devuelve /products?method=productsList
-// Funciona con las tarjetas públicas (sin sesión, precio "private") y con las
-// tarjetas logueadas (data-price numérico + bloques title_price/number_price).
+// Tarjetas públicas (sin sesión): data-price="private".
+// Tarjetas logueadas (estructura real):
+//   data-price="4,630.00"  precio actual (formato EE.UU.)
+//   <div class="discounted_number_price"><s>$ 5,249.00</s></div>  precio anterior
+//   data-um="4"  → "Llevando 4 o más" = compra mínima (no es un precio aparte)
+//   data-saleName="Ofertón - Solo por hoy"  mecánica de promo
+//   data-limit / data-package  tope de unidades y unidades por bulto
 import { parse } from 'node-html-parser';
 
-/** "$ 1.234,56" -> 1234.56 ; "1234.56" -> 1234.56 */
+/**
+ * Números de precio en cualquiera de los dos formatos:
+ *   "$ 1.234,56" (AR) · "$ 4,162.00" (EE.UU., el que usa el sitio) · "1234.5" · "4,162"
+ */
 export function parseArs(text) {
   if (text === null || text === undefined) return null;
   let s = String(text).replace(/[^\d.,-]/g, '');
   if (!s || !/\d/.test(s)) return null;
-  if (s.includes(',')) {
-    s = s.replace(/\./g, '').replace(',', '.');
-  } else {
-    const parts = s.split('.');
-    // "1.234" o "1.234.567" => separador de miles
-    if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) s = parts.join('');
+  const lastComma = s.lastIndexOf(',');
+  const lastDot = s.lastIndexOf('.');
+  if (lastComma >= 0 && lastDot >= 0) {
+    // Hay de los dos: el que aparece último es el decimal
+    const dec = lastComma > lastDot ? ',' : '.';
+    const thou = dec === ',' ? '.' : ',';
+    s = s.split(thou).join('').replace(dec, '.');
+  } else if (lastComma >= 0 || lastDot >= 0) {
+    const sep = lastComma >= 0 ? ',' : '.';
+    const parts = s.split(sep);
+    // "1.234" / "4,162" / "1.234.567" => miles ; "12,5" / "12.50" => decimal
+    if (parts.length > 2 || parts[parts.length - 1].length === 3) s = parts.join('');
+    else s = parts.join('.');
   }
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
@@ -73,7 +88,7 @@ function findCard(node) {
 
 /**
  * Devuelve [{ ean, name, sector, section, category, price, listPrice, promoPrice,
- *            promoMinQty, promo, private }]
+ *            minQty, promo, limit, pack, private }]
  */
 export function parseProductList(html) {
   const root = parse(html, { comment: false });
@@ -89,7 +104,7 @@ export function parseProductList(html) {
 
     // Todos los montos "$ ..." visibles en la tarjeta
     const text = cleanText(card.text);
-    const amounts = [...text.matchAll(/\$\s?([\d.]+(?:,\d{1,2})?)/g)]
+    const amounts = [...text.matchAll(/\$\s?(\d[\d.,]*)/g)]
       .map((m) => parseArs(m[1]))
       .filter((n) => n && n > 0);
 
@@ -104,10 +119,10 @@ export function parseProductList(html) {
       }
     }
 
-    // "Llevando 3 o más"
-    let promoMinQty = null;
+    // Compra mínima: data-um o "Llevando 3 o más"
+    let minQty = Number(btn.getAttribute('data-um')) || null;
     const mq = text.match(/llevando\s+(\d+)\s*(?:o\s+m[aá]s|unidades|u\b)/i);
-    if (mq) promoMinQty = Number(mq[1]);
+    if (!minQty && mq) minQty = Number(mq[1]);
 
     // Precio promocional = el menor monto visible si es menor al precio base
     let promoPrice = null;
@@ -117,8 +132,9 @@ export function parseProductList(html) {
       if (!price && !isPrivate) promoPrice = null;
     }
 
-    const promo = cleanText(card.querySelector('.sale_name')?.text || card.querySelector('[class*="mecanica"]')?.text || '');
-    const limitInfo = cleanText(card.querySelector('#limit_info')?.text || '');
+    const promo = cleanText(btn.getAttribute('data-salename') || btn.getAttribute('data-saleName') || card.querySelector('.sale_name')?.text || '');
+    const limit = Number(btn.getAttribute('data-limit')) || null;
+    const pack = Number(btn.getAttribute('data-package')) || null;
 
     out.push({
       ean,
@@ -129,9 +145,10 @@ export function parseProductList(html) {
       price: price ?? (amounts.length && !isPrivate ? Math.max(...amounts) : null),
       listPrice: listPrice && price && listPrice > price ? listPrice : null,
       promoPrice,
-      promoMinQty,
+      minQty: minQty && minQty > 1 ? minQty : null,
       promo: promo || null,
-      limit: limitInfo || null,
+      limit,
+      pack,
       private: isPrivate,
     });
   }

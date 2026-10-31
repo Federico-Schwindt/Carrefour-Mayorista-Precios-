@@ -36,7 +36,7 @@ export function formatAlert(a, html = true) {
   if (a.listPrice && a.listPrice > a.price) lines.push(`🏷️ Precio de lista ${ars(a.listPrice)}`);
   if (a.seller) lines.push(`🏬 Vendido por ${esc(a.seller)}`);
   if (a.retail) lines.push(`🛒 Minorista ${ars(a.retail)}${a.margin !== undefined && a.margin !== null ? ` → margen ${Math.round(a.margin * 100)}%` : ''}`);
-  const extra = [a.minQty ? `llevando ${a.minQty}+` : '', a.promo || ''].filter(Boolean).join(' · ');
+  const extra = [a.promo || '', a.minQty ? `compra mínima ${a.minQty} u.` : ''].filter(Boolean).join(' · ');
   if (extra) lines.push(`🏷️ ${esc(extra)}`);
   for (const r of a.reasons || []) lines.push(`• ${esc(r)}`);
   lines.push(`📂 ${esc(a.category || a.section || '')}`);

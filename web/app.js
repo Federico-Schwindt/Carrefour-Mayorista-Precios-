@@ -98,7 +98,8 @@ function refPrice(series) {
 // ---------- tarjetas ----------
 function productCard(p, { right = '', extra = '' } = {}) {
   const src = S.source;
-  const promo = p.pp ? `<span class="pill promo">${p.q ? `Llevando ${p.q}+` : 'Promo'}</span>` : p.o ? '<span class="pill promo">Oferta</span>' : '';
+  const promo = p.pr ? `<span class="pill promo">${esc(p.pr)}</span>` : p.pp || p.o ? '<span class="pill promo">Oferta</span>' : '';
+  const minq = p.q ? `<span class="meta">mín. ${p.q} u.${p.pk ? ` · bulto ${p.pk}` : ''}</span>` : '';
   const was = p.pp && p.p > p.pp ? p.p : p.lp && p.lp > (p.e ?? p.p) ? p.lp : null;
   return `<button class="card ${SRC[src].short}" data-ean="${esc(p.ean)}">
     <img loading="lazy" src="${esc(imgOf(p))}" onerror="this.onerror=null;this.src='${NOIMG}'" alt="">
@@ -106,7 +107,7 @@ function productCard(p, { right = '', extra = '' } = {}) {
       <div class="meta">${srcBadge(src)}${esc(p.c || p.sc || '')}</div>
       <div class="name">${esc(p.n)}</div>
       <div><span class="price">${ars(p.e ?? p.p)}</span>${was ? `<span class="was">${ars(was)}</span>` : ''} ${right}</div>
-      <div style="margin-top:4px">${unseen(p) ? `<span class="pill">no visto desde ${ago(p.l)}</span>` : ''}${promo}${p.sl ? `<span class="meta">Vende: ${esc(p.sl)}</span>` : ''}${extra}</div>
+      <div style="margin-top:4px">${unseen(p) ? `<span class="pill">no visto desde ${ago(p.l)}</span>` : ''}${promo}${minq}${p.sl ? `<span class="meta">Vende: ${esc(p.sl)}</span>` : ''}${extra}</div>
     </div>
   </button>`;
 }
@@ -122,7 +123,7 @@ function alertCard(a) {
       <div>${srcBadge(src)}${types}${a.suppressed ? '<span class="pill">no notificada</span>' : ''}</div>
       <div class="name">${esc(a.name)}</div>
       <div><span class="price">${ars(a.price)}</span>${was}</div>
-      ${retail}${a.seller ? `<div class="meta">Vende: ${esc(a.seller)}</div>` : ''}
+      ${retail}${a.promo ? `<span class="pill promo">${esc(a.promo)}</span>` : ''}${a.seller ? `<div class="meta">Vende: ${esc(a.seller)}</div>` : ''}
       <ul class="reasons">${(a.reasons || []).map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
       <div class="meta" style="margin-top:4px">${esc(a.category || '')} · ${ago(a.ts)}${a.notified ? ' · 🔔 avisada' : ''}</div>
     </div>
@@ -347,7 +348,7 @@ async function openDetail(ean, src = S.source) {
           <div class="meta">${srcBadge(src)}${esc([base.s, base.c].filter(Boolean).join(' › '))}</div>
           <h2>${esc(base.n)}</h2>
           <div><span class="price">${ars(price)}</span>${base.pp && base.p > base.pp ? `<span class="was">${ars(base.p)}</span>` : base.lp && base.lp > price ? `<span class="was">${ars(base.lp)}</span>` : ''}</div>
-          ${base.pp ? `<div class="meta">Precio llevando ${base.q || 'varias'} unidades · normal ${ars(base.p)}</div>` : ''}
+          ${base.q ? `<div class="meta">Compra mínima ${base.q} u.${base.pk ? ` · bulto de ${base.pk}` : ''}</div>` : ''}
           ${base.pr ? `<span class="pill promo">${esc(base.pr)}</span>` : ''}
           ${base.sl ? `<div class="meta">Vendido por ${esc(base.sl)}</div>` : ''}
         </div>
