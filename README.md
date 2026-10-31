@@ -1,19 +1,25 @@
-# 📉 Radar Maxi — alertas de precios de Carrefour Maxi
+# 📉 Radar Maxi — alertas de precios de Carrefour
 
-Monitor automático de **comerciante.carrefour.com.ar** (Carrefour Maxi mayorista) para la sucursal que elijas
-(por defecto **Gualeguaychú – Primera Junta y Ruta 136**, Entre Ríos).
+Monitor automático con **dos fuentes separadas**, cada una con sus propias alertas, datos y color en la web:
 
-Cada **30 minutos** lee el catálogo completo (~4.000 productos), guarda el historial de precios y te avisa al celular cuando:
+| | Fuente | Login | Productos |
+|---|---|---|---|
+| 🏪 **MAYORISTA** | comerciante.carrefour.com.ar (Carrefour Maxi, sucursal **Gualeguaychú**) | sí (cookie de tu sesión) | ~4.000 |
+| 🛒 **MINORISTA** | www.carrefour.com.ar (API pública) | **no** | ~18.000 con stock (súper + electro) |
+
+Cada **30 minutos** lee los dos catálogos, guarda el historial de precios y te avisa al celular. Cada aviso arranca con
+**🏪 MAYORISTA** o **🛒 MINORISTA** para que nunca se mezclen:
 
 | Alerta | Cuándo salta |
 |---|---|
-| 🚨 **Posible error de precio** | Bajó **50 % o más** de golpe · está a menos de la mitad de su precio habitual · cuesta **menos del 45 %** que en Carrefour minorista · su precio por kg/l es **70 % menor** que el resto de su categoría |
-| 💰 **Buen margen para reventa** | El precio en **carrefour.com.ar** (minorista) es **35 % o más** caro que el mayorista |
-| 📉 **Baja fuerte** | Bajó **15 % o más** respecto de la lectura anterior |
+| 🚨 **Posible error de precio** | Bajó **50 % o más** de golpe · menos de la mitad de su precio habitual · **65 %+ por debajo del precio de lista** · precio por kg/l **70 % menor** que el resto de su categoría · (mayorista) menos del 45 % del precio minorista |
+| 💰 **Buen margen para reventa** (sólo mayorista) | En **carrefour.com.ar** cuesta **35 % o más** que en Maxi |
+| 📉 **Baja fuerte** | Mayorista: bajó **15 %+**. Minorista: bajó **30 %+** (hay muchas promos, por eso el umbral es más alto) |
 | 🏆 **Mínimo histórico** | Es el precio más bajo registrado y está 8 % por debajo del habitual |
 
-Además hay una **web** (GitHub Pages, gratis) para ver todo desde el celular: alertas, ranking de margen de reventa,
-mayores bajas, buscador con precio por kg/l y gráfico del historial de cada producto.
+La **web** (GitHub Pages, gratis) tiene un selector **🏪 Mayorista / 🛒 Minorista** arriba (la barra cambia de color:
+azul mayorista, verde minorista) y cada producto lleva su insignia. Pestañas: alertas, reventa (mayorista), mayores bajas,
+buscador con precio por kg/l y gráfico del historial.
 
 ---
 
@@ -21,17 +27,18 @@ mayores bajas, buscador con precio por kg/l y gráfico del historial de cada pro
 
 ```
 GitHub Actions (cada 30 min)
-  ├─ usa tu sesión de Carrefour Maxi (cookie guardada como secret, cifrada entre corridas)
-  ├─ catálogo completo: ~11 pedidos al sitio (1.000 productos por pedido)
-  ├─ precio minorista en carrefour.com.ar (API pública) por EAN, de a tandas
+  ├─ 🛒 minorista: catálogo público de carrefour.com.ar (~360 pedidos de 50, ~3 min)
+  ├─ 🏪 mayorista: usa tu sesión de Carrefour Maxi (cookie como secret, cifrada entre corridas)
+  │     catálogo completo en ~11 pedidos; el margen de reventa usa los precios minoristas
   ├─ reglas de detección + guardas anti falsos positivos
   ├─ avisos: Telegram / ntfy / Discord (sin repetir el mismo aviso)
-  ├─ datos → rama "data" (products, history, alerts, retail, status)
+  ├─ datos → rama "data": mayorista (products/history/alerts.json) y minorista (min-*.json), separados
   └─ web → GitHub Pages
 GitHub Actions (cada 10 min) → "keepalive": toca el sitio para que la sesión no venza
 ```
 
 **Robustez**
+- Las dos fuentes son independientes: si falta la sesión mayorista, el minorista sigue funcionando.
 - Reintentos con espera exponencial ante cortes, 429 y errores 5xx; cada sección se lee por separado.
 - Si una corrida lee muchos menos productos que la anterior, la marca como **parcial**.
 - Si “baja” más del 25 % del catálogo a la vez, se asume un **error de lectura** y **no** se notifica.
@@ -89,6 +96,11 @@ Opcionales: `NTFY_TOPIC` (avisos push con la app **ntfy**, sin registrarse: eleg
 | `ALERT_MIN_PRICE` | `300` | Ignora productos más baratos que esto |
 | `NOTIFY_TYPES` | `error,reventa,baja,minimo` | Qué tipos mandan push (el resto sólo en la web) |
 | `NOTIFY_MAX_PER_RUN` | `25` | Tope de avisos por corrida |
+| `MIN_ENABLED` | `true` | Activar el monitor minorista |
+| `MIN_CATEGORIES` | `161,222,255,292,336,347,359,402,451,471,3` | Rubros de carrefour.com.ar (ver `src/config.js`; `71` Hogar, `605` Juguetería, `665` Aire libre…) |
+| `MIN_ALERT_DROP_PCT` | `0.3` | Baja mínima para “baja fuerte” en minorista |
+| `MIN_NOTIFY_TYPES` | `error,baja,minimo` | Qué alertas minoristas mandan push |
+| `MIN_NOTIFY_MAX_PER_RUN` | `15` | Tope de avisos minoristas por corrida |
 
 Sucursales de Entre Ríos: `266` Paraná (Don Bosco) · `244` Paraná (Yrigoyen) · `233` Concordia · `240` Gualeguaychú
 (`npm run sucursales -- "ENTRE RIOS"` para otras provincias).
@@ -136,7 +148,8 @@ src/
   session.js    sesión cifrada, validación e ingreso asistido
   catalog.js    descarga del catálogo por sección
   parse.js      parser de las tarjetas de producto y cantidades (kg/l/u)
-  retail.js     precios de carrefour.com.ar (minorista) por EAN
+  retail.js     precio minorista por EAN (para el margen de reventa)
+  retail-catalog.js  catálogo minorista completo de carrefour.com.ar
   detect.js     reglas de alerta (funciones puras, testeadas)
   notify.js     Telegram / ntfy / Discord
   daemon.js     modo servidor (cada 30 min + web local)

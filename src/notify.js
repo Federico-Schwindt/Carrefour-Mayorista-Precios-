@@ -19,24 +19,31 @@ export function channelsConfigured() {
 
 export const productUrl = (ean) => `${config.baseUrl}p/${ean}`;
 export const imageUrl = (ean) => `https://tupedido.carrefour.com.ar/imagenesPDA/${ean}.jpg`;
+export const SOURCE_TAG = { mayorista: '🏪 MAYORISTA · Carrefour Maxi', minorista: '🛒 MINORISTA · carrefour.com.ar' };
+const isMin = (a) => a.source === 'minorista';
+const linkOf = (a) => (isMin(a) ? a.url || 'https://www.carrefour.com.ar/' : productUrl(a.ean));
+const imageOf = (a) => a.image || imageUrl(a.ean);
 
 export function formatAlert(a, html = true) {
   const b = (s) => (html ? `<b>${esc(s)}</b>` : s);
   const lines = [];
+  lines.push(b(SOURCE_TAG[a.source] || SOURCE_TAG.mayorista));
   lines.push(`${EMOJI[a.type] || '🔔'} ${b(String(TYPE_LABEL[a.type] || a.type).toUpperCase())}`);
   lines.push(b(a.name));
   let priceLine = `💲 ${ars(a.price)}`;
   if (a.prev && a.prev !== a.price) priceLine += ` (antes ${ars(a.prev)}, ${a.dropPct > 0 ? '-' : '+'}${Math.abs(Math.round(a.dropPct * 100))}%)`;
   lines.push(priceLine);
+  if (a.listPrice && a.listPrice > a.price) lines.push(`🏷️ Precio de lista ${ars(a.listPrice)}`);
+  if (a.seller) lines.push(`🏬 Vendido por ${esc(a.seller)}`);
   if (a.retail) lines.push(`🛒 Minorista ${ars(a.retail)}${a.margin !== undefined && a.margin !== null ? ` → margen ${Math.round(a.margin * 100)}%` : ''}`);
   const extra = [a.minQty ? `llevando ${a.minQty}+` : '', a.promo || ''].filter(Boolean).join(' · ');
   if (extra) lines.push(`🏷️ ${esc(extra)}`);
   for (const r of a.reasons || []) lines.push(`• ${esc(r)}`);
   lines.push(`📂 ${esc(a.category || a.section || '')}`);
   if (html) {
-    const links = [`<a href="${productUrl(a.ean)}">Ver en Carrefour Maxi</a>`];
+    const links = [`<a href="${esc(linkOf(a))}">${isMin(a) ? 'Ver en carrefour.com.ar' : 'Ver en Carrefour Maxi'}</a>`];
     if (a.retailUrl) links.push(`<a href="${esc(a.retailUrl)}">Minorista</a>`);
-    if (config.dashboardUrl) links.push(`<a href="${config.dashboardUrl}#p=${a.ean}">Historial</a>`);
+    if (config.dashboardUrl) links.push(`<a href="${config.dashboardUrl}#${isMin(a) ? 'min' : 'may'}=${a.ean}">Historial</a>`);
     lines.push(links.join(' · '));
   }
   return lines.join('\n');
@@ -57,7 +64,7 @@ async function telegram(method, payload) {
 async function sendTelegramAlert(a) {
   const caption = formatAlert(a, true);
   try {
-    await telegram('sendPhoto', { chat_id: config.notify.telegramChatId, photo: imageUrl(a.ean), caption: caption.slice(0, 1020), parse_mode: 'HTML' });
+    await telegram('sendPhoto', { chat_id: config.notify.telegramChatId, photo: imageOf(a), caption: caption.slice(0, 1020), parse_mode: 'HTML' });
   } catch {
     await telegram('sendMessage', { chat_id: config.notify.telegramChatId, text: caption, parse_mode: 'HTML', disable_web_page_preview: true });
   }
@@ -89,13 +96,13 @@ export async function notifyAlert(a) {
   const results = [];
   if (ch.telegram) results.push(sendTelegramAlert(a));
   if (ch.ntfy) {
-    const plain = formatAlert(a, false).split('\n').slice(1).join('\n');
+    const plain = formatAlert(a, false).split('\n').slice(2).join('\n');
     results.push(
       sendNtfy({
-        title: `${EMOJI[a.type] || ''} ${TYPE_LABEL[a.type] || a.type}: ${ars(a.price)}`,
+        title: `${isMin(a) ? '🛒 MINORISTA' : '🏪 MAYORISTA'} · ${TYPE_LABEL[a.type] || a.type}: ${ars(a.price)}`,
         body: plain,
-        click: productUrl(a.ean),
-        image: imageUrl(a.ean),
+        click: linkOf(a),
+        image: imageOf(a),
         priority: a.type === 'error' ? 5 : 4,
         tags: [a.type],
       }),
@@ -104,10 +111,10 @@ export async function notifyAlert(a) {
   if (ch.discord) {
     results.push(
       sendDiscord('', {
-        title: `${EMOJI[a.type] || ''} ${TYPE_LABEL[a.type]} — ${a.name}`.slice(0, 250),
-        url: productUrl(a.ean),
-        description: formatAlert(a, false).split('\n').slice(2).join('\n').slice(0, 3900),
-        thumbnail: { url: imageUrl(a.ean) },
+        title: `${isMin(a) ? '🛒 MINORISTA' : '🏪 MAYORISTA'} · ${TYPE_LABEL[a.type]} — ${a.name}`.slice(0, 250),
+        url: linkOf(a),
+        description: formatAlert(a, false).split('\n').slice(3).join('\n').slice(0, 3900),
+        thumbnail: { url: imageOf(a) },
         color: a.type === 'error' ? 0xe53935 : a.type === 'reventa' ? 0x43a047 : 0x1e88e5,
       }),
     );

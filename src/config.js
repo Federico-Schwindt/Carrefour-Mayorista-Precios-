@@ -60,6 +60,8 @@ export const config = {
     errorRatio: num('ALERT_ERROR_RATIO', 0.5),
     // Posible error: precio <= X * precio minorista de carrefour.com.ar
     errorRetailRatio: num('ALERT_ERROR_RETAIL_RATIO', 0.45),
+    // Posible error: precio <= X * precio de lista (tachado)
+    listRatio: num('ALERT_LIST_RATIO', 0.35),
     // Posible error: precio por kg/l/unidad <= X * mediana de su categoría
     unitOutlierRatio: num('ALERT_UNIT_RATIO', 0.3),
     unitOutlierMinGroup: num('ALERT_UNIT_MIN_GROUP', 6),
@@ -81,6 +83,22 @@ export const config = {
     minCatalogRatio: num('GUARD_MIN_CATALOG_RATIO', 0.6),
     // Si más de X de los productos bajan fuerte a la vez, se sospecha error de lectura
     maxMassDropRatio: num('GUARD_MAX_MASS_DROP_RATIO', 0.25),
+  },
+
+  // ---- MINORISTA: catálogo completo de carrefour.com.ar (público, sin login) ----
+  minorista: {
+    enabled: bool('MIN_ENABLED', true),
+    // Rubros (id de categoría VTEX). Por defecto: súper + electro.
+    // 161 Almacén · 222 Desayuno · 255 Bebidas · 292 Lácteos · 336 Panadería · 347 Congelados
+    // 359 Limpieza · 402 Perfumería · 451 Mundo Bebé · 471 Mascotas · 3 Electro y tecnología
+    // Otros: 71 Hogar · 605 Juguetería · 635 Automotor · 665 Aire libre · 563 Indumentaria
+    categories: str('MIN_CATEGORIES', '161,222,255,292,336,347,359,402,451,471,3').split(',').map((s) => s.trim()).filter(Boolean),
+    concurrency: num('MIN_CONCURRENCY', 3),
+    delayMs: num('MIN_DELAY_MS', 250),
+    // En minorista hay muchas promos: umbral de "baja fuerte" más alto
+    dropPct: num('MIN_ALERT_DROP_PCT', 0.3),
+    maxPerRun: num('MIN_NOTIFY_MAX_PER_RUN', 15),
+    types: str('MIN_NOTIFY_TYPES', 'error,baja,minimo').split(',').map((s) => s.trim()),
   },
 
   retail: {

@@ -10,6 +10,8 @@ export const TYPE_LABEL = {
 };
 
 const DAY_MIN = 24 * 60;
+// Rubros donde comparar precio por kg/l no tiene sentido (capacidad ≠ contenido)
+const NON_UNIT_SECTORS = /electro|tecnolog|hogar|indumentaria|jugueter|librer|automotor|aire libre/i;
 
 export function effectivePrice(p) {
   if (!p || !p.price) return null;
@@ -56,6 +58,7 @@ export function buildUnitIndex(products) {
   const groups = new Map();
   for (const p of products) {
     const eff = effectivePrice(p);
+    if (NON_UNIT_SECTORS.test(p.sector || '')) continue;
     const q = parseQuantity(p.name);
     if (!eff || !q || !p.category) continue;
     const key = `${p.category}|${q.unit}`;
@@ -102,7 +105,11 @@ export function evaluateProduct(p, ctx) {
     hits.add('error');
     reasons.push(`Cuesta ${pct(1 - eff / retail.price)} menos que en Carrefour minorista (${ars(retail.price)})`);
   }
-  if (unitIndex && wentDown) {
+  if (p.listPrice && rules.listRatio && wentDown && eff <= p.listPrice * rules.listRatio) {
+    hits.add('error');
+    reasons.push(`Está ${pct(1 - eff / p.listPrice)} por debajo de su precio de lista (${ars(p.listPrice)})`);
+  }
+  if (unitIndex && wentDown && !NON_UNIT_SECTORS.test(p.sector || '')) {
     const q = parseQuantity(p.name);
     const g = q && unitIndex.get(`${p.category}|${q.unit}`);
     if (g && g.n >= rules.unitOutlierMinGroup && g.median > 0) {

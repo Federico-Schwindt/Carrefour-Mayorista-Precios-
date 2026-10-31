@@ -45,6 +45,12 @@ jobs:
       ALERT_MIN_PRICE: ${{ vars.ALERT_MIN_PRICE }}
       NOTIFY_TYPES: ${{ vars.NOTIFY_TYPES }}
       NOTIFY_MAX_PER_RUN: ${{ vars.NOTIFY_MAX_PER_RUN }}
+      # --- Minorista (carrefour.com.ar, sin login) ---
+      MIN_ENABLED: ${{ vars.MIN_ENABLED }}
+      MIN_CATEGORIES: ${{ vars.MIN_CATEGORIES }}
+      MIN_ALERT_DROP_PCT: ${{ vars.MIN_ALERT_DROP_PCT }}
+      MIN_NOTIFY_TYPES: ${{ vars.MIN_NOTIFY_TYPES }}
+      MIN_NOTIFY_MAX_PER_RUN: ${{ vars.MIN_NOTIFY_MAX_PER_RUN }}
     steps:
       - uses: actions/checkout@v4
 

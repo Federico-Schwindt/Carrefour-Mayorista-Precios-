@@ -7,6 +7,11 @@
   --brand: #0b4ea2;
   --brand-ink: #ffffff;
   --header: #0b4ea2;
+  --header-min: #0d7a4f;
+  --may: #0b4ea2;
+  --may-bg: #e3edfb;
+  --mnr: #0d7a4f;
+  --mnr-bg: #dff3ea;
   --error: #d92d20;
   --error-bg: #fdecea;
   --resale: #0f8a4a;
@@ -30,6 +35,11 @@
     --line: #262c38;
     --brand: #3b82f6;
     --header: #10325f;
+    --header-min: #0c4a33;
+    --may: #7fb0ff;
+    --may-bg: #14284a;
+    --mnr: #5fd39f;
+    --mnr-bg: #0f2f22;
     --error: #ff6b5e;
     --error-bg: #3a1714;
     --resale: #34c77b;
@@ -163,3 +173,25 @@ th { color: var(--muted); font-weight: 600; }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; }
 .table-wrap { overflow-x: auto; }
+
+/* ---- Fuente: mayorista / minorista ---- */
+body[data-source="minorista"] .top { background: var(--header-min); }
+body[data-source="minorista"] .only-may { display: none; }
+.sources { display: flex; gap: 6px; max-width: 960px; margin: 10px auto 0; }
+.sources button {
+  flex: 1; border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.08); color: #fff;
+  border-radius: 12px; padding: 8px 6px; font-weight: 700; font-size: 14px; cursor: pointer; line-height: 1.15;
+}
+.sources button small { display: block; font-weight: 500; font-size: 11px; opacity: .85; }
+.sources button.active { background: #fff; color: var(--header); border-color: #fff; }
+body[data-source="minorista"] .sources button.active { color: var(--header-min); }
+.sources .badge { background: #ffdd57; color: #3d2f00; }
+.src { display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: .04em; padding: 2px 7px; border-radius: 6px; margin-right: 4px; vertical-align: 1px; }
+.src.may { background: var(--may-bg); color: var(--may); }
+.src.min { background: var(--mnr-bg); color: var(--mnr); }
+.card.min { border-left: 4px solid var(--mnr); }
+.card.may { border-left: 4px solid var(--may); }
+.status-grid { display: grid; gap: 12px; }
+@media (min-width: 720px) { .status-grid { grid-template-columns: 1fr 1fr; } }
+body[data-source="minorista"] { --brand: #0d7a4f; }
+@media (prefers-color-scheme: dark) { body[data-source="minorista"] { --brand: #2fae74; } }

@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body data-source="mayorista">
   <header class="top">
     <div class="top__row">
       <div>
@@ -21,9 +21,13 @@
         <span class="dot"></span><span id="statusText">Cargando…</span>
       </button>
     </div>
+    <div class="sources" role="radiogroup" aria-label="Fuente de precios">
+      <button role="radio" data-source="mayorista" class="active" aria-checked="true">🏪 Mayorista <small>Maxi</small> <span class="badge" id="badgeMay"></span></button>
+      <button role="radio" data-source="minorista" aria-checked="false">🛒 Minorista <small>carrefour.com.ar</small> <span class="badge" id="badgeMin"></span></button>
+    </div>
     <nav class="tabs" role="tablist">
-      <button role="tab" data-tab="alertas" class="active">Alertas <span class="badge" id="badgeAlerts"></span></button>
-      <button role="tab" data-tab="reventa">Reventa</button>
+      <button role="tab" data-tab="alertas" class="active">Alertas</button>
+      <button role="tab" data-tab="reventa" class="only-may">Reventa</button>
       <button role="tab" data-tab="bajas">Bajas</button>
       <button role="tab" data-tab="buscar">Buscar</button>
       <button role="tab" data-tab="estado">Estado</button>
@@ -39,7 +43,7 @@
         <div class="chips" id="typeChips">
           <button class="chip active" data-type="">Todas</button>
           <button class="chip" data-type="error">🚨 Errores</button>
-          <button class="chip" data-type="reventa">💰 Reventa</button>
+          <button class="chip only-may" data-type="reventa">💰 Reventa</button>
           <button class="chip" data-type="baja">📉 Bajas</button>
           <button class="chip" data-type="minimo">🏆 Mínimos</button>
         </div>
