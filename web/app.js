@@ -39,11 +39,41 @@ const pct = (x) => `${Math.round(x * 100)}%`;
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const title = (s) => String(s || '').toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
 const NOIMG = 'https://tupedido.carrefour.com.ar/imagenesPDA/noimage-svg.svg';
-const fullImg = (x) => (!x ? null : /^https?:/.test(x) ? x : `https://carrefourar.vteximg.com.br/arquivos/ids/${x}`);
+// Fotos del minorista: se piden achicadas (240 px) para que carguen rápido en el celular
+const fullImg = (x) => {
+  if (!x) return null;
+  const u = /^https?:/.test(x) ? x : `https://carrefourar.vteximg.com.br/arquivos/ids/${x}`;
+  return u.replace(/(vteximg\.com\.br\/arquivos\/ids\/)(\d+)\//, '$1$2-240-240/');
+};
 const fullUrl = (x) => (!x ? null : /^https?:/.test(x) ? x : `https://www.carrefour.com.ar/${x}/p`);
 const kindOf = (id) => srcOf(id)?.kind || (id === 'min' ? 'minorista' : 'mayorista');
 const imgOf = (p, id = curId()) => fullImg(p.im || p.image) || (kindOf(id) === 'mayorista' && /^\d+$/.test(p.ean) ? `https://tupedido.carrefour.com.ar/imagenesPDA/${p.ean}.jpg` : NOIMG);
 const linkOf = (p, id = curId()) => (kindOf(id) === 'minorista' ? fullUrl(p.u || p.url) || 'https://www.carrefour.com.ar/' : `${MAXI}p/${p.ean}`);
+// Imágenes con respaldo: si una no carga (bloqueo del navegador, CDN caído, foto inexistente)
+// prueba la foto del minorista para el mismo EAN y después un servidor de imágenes alternativo.
+const proxyImg = (u) => `https://wsrv.nl/?url=${encodeURIComponent(u.replace(/^https?:\/\//, ''))}&w=240&h=240&fit=contain&bg=white&output=jpg`;
+function imgCandidates(p, id) {
+  const first = imgOf(p, id);
+  const list = [first];
+  const minP = kindOf(id) === 'mayorista' ? S.data[minSrc()?.id]?.byEan?.get(p.ean) : null;
+  if (minP?.im) list.push(fullImg(minP.im));
+  if (first !== NOIMG) list.push(proxyImg(first));
+  return [...new Set(list)];
+}
+function imgTag(p, id, lazy = true) {
+  const [src, ...rest] = imgCandidates(p, id);
+  return `<img${lazy ? ' loading="lazy"' : ''} decoding="async" referrerpolicy="no-referrer" src="${esc(src)}" data-fb="${esc(rest.map(encodeURIComponent).join('|'))}" onerror="imgFb(this)" alt="">`;
+}
+window.imgFb = (el) => {
+  const list = (el.dataset.fb || '').split('|').filter(Boolean);
+  const next = list.shift();
+  el.dataset.fb = list.join('|');
+  if (next) el.src = decodeURIComponent(next);
+  else {
+    el.onerror = null;
+    el.src = NOIMG;
+  }
+};
 const unseen = (p) => p.l && D().updatedAt && Date.parse(p.l) < Date.parse(D().updatedAt) - 3600e3;
 function srcBadge(id = curId()) {
   const s = srcOf(id);
@@ -189,7 +219,7 @@ function productCard(p, { right = '', extra = '', id = curId() } = {}) {
   const minq = p.q ? `<span class="meta">mín. ${p.q} u.${p.pk ? ` · bulto ${p.pk}` : ''}</span>` : '';
   const was = p.pp && p.p > p.pp ? p.p : p.lp && p.lp > (p.e ?? p.p) ? p.lp : null;
   return `<button class="card ${kindOf(id) === 'minorista' ? 'min' : 'may'}" data-ean="${esc(p.ean)}" data-src="${esc(id)}">
-    <img loading="lazy" src="${esc(imgOf(p, id))}" onerror="this.onerror=null;this.src='${NOIMG}'" alt="">
+    ${imgTag(p, id)}
     <div>
       <div class="meta">${srcBadge(id)}${esc(p.c || p.sc || '')}</div>
       <div class="name">${esc(p.n)}</div>
@@ -205,7 +235,7 @@ function alertCard(a) {
   const was = a.prev && a.prev > a.price ? `<span class="was">${ars(a.prev)}</span> <span class="neg">-${pct(a.dropPct || 1 - a.price / a.prev)}</span>` : a.listPrice && a.listPrice > a.price ? `<span class="was">${ars(a.listPrice)}</span>` : '';
   const retail = a.retail ? `<div class="meta">Minorista ${ars(a.retail)}${a.margin != null ? ` · margen <span class="pos">${pct(a.margin)}</span>` : ''}</div>` : '';
   return `<button class="card ${kindOf(id) === 'minorista' ? 'min' : 'may'}" data-ean="${esc(a.ean)}" data-src="${esc(id)}">
-    <img loading="lazy" src="${esc(imgOf(a, id))}" onerror="this.onerror=null;this.src='${NOIMG}'" alt="">
+    ${imgTag(a, id)}
     <div>
       <div>${srcBadge(id)}${types}${a.suppressed ? '<span class="pill">no notificada</span>' : ''}</div>
       <div class="name">${esc(a.name)}</div>
@@ -220,7 +250,7 @@ function alertCard(a) {
 function oppCard(o) {
   const sigs = Object.entries(o.signals || {}).map(([k, v]) => `<span class="sig ${k}">${SIG_LABEL[k] || k} ${k === 'reventa' ? '+' : '-'}${pct(v)}</span>`).join('');
   return `<button class="card ${o.kind === 'minorista' ? 'min' : 'may'}" data-ean="${esc(o.ean)}" data-src="${esc(o.sourceId)}">
-    <img loading="lazy" src="${esc(imgOf(o, o.sourceId))}" onerror="this.onerror=null;this.src='${NOIMG}'" alt="">
+    ${imgTag(o, o.sourceId)}
     <div>
       <div class="meta">${srcBadge(o.sourceId)}${esc(o.category || '')}</div>
       <div class="name">${esc(o.name)}</div>
@@ -489,7 +519,7 @@ async function openDetail(ean, id = curId()) {
     const compare = rows.length > 1 ? `<table class="compare"><tbody>${rows.map(({ s, xp, me }) => `<tr class="${me ? 'me' : ''}"><td>${s.kind === 'minorista' ? '🛒 carrefour.com.ar' : `🏪 Maxi ${esc(title(s.name))}`}</td><td>${ars(xp)}</td><td>${me ? '' : `<span class="${xp > price ? 'pos' : 'neg'}">${xp > price ? '+' : ''}${pct(xp / price - 1)}</span>`}</td></tr>`).join('')}</tbody></table>` : '';
     $('#detailBody').innerHTML = `
       <div class="detail-head">
-        <img src="${esc(imgOf(base, id))}" onerror="this.onerror=null;this.src='${NOIMG}'" alt="">
+        ${imgTag(base, id, false)}
         <div>
           <div class="meta">${srcBadge(id)}${esc([base.s, base.c].filter(Boolean).join(' › '))}</div>
           <h2>${esc(base.n)}</h2>
