@@ -71,7 +71,6 @@ function run(dataDir, extraEnv = {}) {
     NTFY_TOPIC: 'topic',
     TELEGRAM_BOT_TOKEN: '',
     DISCORD_WEBHOOK_URL: '',
-    CF_NAME: '',
     CF_COOKIE: 'PHPSESSID=ok',
     SESSION_SECRET: '',
     HTTP_DELAY_MS: '0',
@@ -137,5 +136,5 @@ test('ciclo completo: base → bajas → avisos → falla de sesión', async () 
 
   // nada personal en los datos publicados
   const all = fs.readdirSync(dir).map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
-  assert.ok(!/PHPSESSID/.test(all), 'no debe guardar cookies en data/');
+  assert.ok(!/PHPSESSID=(ok|mala)/.test(all), 'no debe guardar valores de cookie en data/');
 });

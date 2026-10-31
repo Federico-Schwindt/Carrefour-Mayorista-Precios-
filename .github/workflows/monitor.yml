@@ -4,11 +4,6 @@ on:
   schedule:
     - cron: '*/30 * * * *' # cada 30 minutos (GitHub puede demorarlo algunos minutos)
   workflow_dispatch:
-    inputs:
-      force_login:
-        description: 'Forzar login nuevo (ignora la sesión guardada)'
-        type: boolean
-        default: false
   push:
     branches: [main]
     paths: ['src/**', 'web/**', 'package*.json', '.github/workflows/monitor.yml']
@@ -32,11 +27,7 @@ jobs:
     env:
       TZ: America/Argentina/Buenos_Aires
       DATA_DIR: data
-      # --- Login / sucursal (Settings → Secrets and variables → Actions) ---
-      CF_NAME: ${{ secrets.CF_NAME }}
-      CF_CUIT: ${{ secrets.CF_CUIT }}
-      CF_PHONE: ${{ secrets.CF_PHONE }}
-      CF_EMAIL: ${{ secrets.CF_EMAIL }}
+      # --- Sesión / sucursal (Settings → Secrets and variables → Actions) ---
       CF_COOKIE: ${{ secrets.CF_COOKIE }}
       CF_REGION: ${{ vars.CF_REGION || 'ENTRE RIOS' }}
       CF_SELLER: ${{ vars.CF_SELLER || '240' }}
@@ -89,15 +80,9 @@ jobs:
           key: session-${{ github.run_id }}
           restore-keys: session-
 
-      - name: Restaurar navegador (sólo se usa si hay que loguearse)
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: pw-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-
       - name: Correr monitor
         id: run
-        run: node src/run.js ${{ inputs.force_login && '--force-login' || '' }}
+        run: node src/run.js
         continue-on-error: true
 
       - name: Guardar sesión cifrada

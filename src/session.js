@@ -1,21 +1,22 @@
 // Manejo de sesión: el sitio sólo muestra precios con una sucursal elegida
-// (sesión PHP). Orden de prioridad:
+// (sesión PHP creada por el formulario de ingreso, que tiene reCAPTCHA).
+//
+// El ingreso lo hace SIEMPRE una persona (pasa el reCAPTCHA como cualquier
+// usuario). El monitor sólo reutiliza esa sesión:
 //   1) sesión guardada (cifrada) de la corrida anterior, si sigue válida
-//   2) cookie pegada a mano (CF_COOKIE)
-//   3) login automático con un navegador real (Playwright) usando los datos
-//      del formulario de la web (nombre, CUIT, teléfono, email, sucursal).
+//   2) cookie pegada a mano en CF_COOKIE ("PHPSESSID=...")
+// Para obtenerla: `npm run login` (abre un navegador visible en tu PC) o
+// copiar la cookie PHPSESSID desde el navegador después de ingresar.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { execSync } from 'node:child_process';
-import { config, hasCredentials } from './config.js';
+import { config } from './config.js';
 import { CookieJar, request } from './http.js';
 import { parseProductList } from './parse.js';
 import { log } from './log.js';
 
 const SESSION_DIR = path.join(config.root, '.session');
 const SESSION_FILE = path.join(SESSION_DIR, 'session.enc');
-const RECAPTCHA_FALLBACK_KEY = '6LdiZHIqAAAAAJO8Gn9RbfC6bMckPmMXgoBrqfmJ';
 
 function keyFromSecret() {
   return crypto.createHash('sha256').update(`cf-session:${config.sessionSecret}`).digest();
@@ -26,11 +27,13 @@ export async function saveSession(jar) {
   await fs.mkdir(SESSION_DIR, { recursive: true });
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', keyFromSecret(), iv);
-  const payload = JSON.stringify({ savedAt: new Date().toISOString(), cookies: jar.toJSON(), seller: config.account.seller });
+  const payload = JSON.stringify({ savedAt: new Date().toISOString(), cookies: jar.toJSON(), source: config.manualCookie ? hashCookie(config.manualCookie) : null });
   const enc = Buffer.concat([cipher.update(payload, 'utf8'), cipher.final()]);
   await fs.writeFile(SESSION_FILE, Buffer.concat([iv, cipher.getAuthTag(), enc]));
   return true;
 }
+
+const hashCookie = (c) => crypto.createHash('sha256').update(c).digest('hex').slice(0, 16);
 
 export async function loadSavedSession() {
   if (!config.sessionSecret) return null;
@@ -39,8 +42,9 @@ export async function loadSavedSession() {
     const decipher = crypto.createDecipheriv('aes-256-gcm', keyFromSecret(), buf.subarray(0, 12));
     decipher.setAuthTag(buf.subarray(12, 28));
     const json = JSON.parse(Buffer.concat([decipher.update(buf.subarray(28)), decipher.final()]).toString('utf8'));
-    if (json.seller && json.seller !== config.account.seller) return null; // cambió la sucursal
-    return new CookieJar(json.cookies);
+    // Si cargaste una cookie nueva en CF_COOKIE, tiene prioridad sobre la guardada
+    if (config.manualCookie && json.source && json.source !== hashCookie(config.manualCookie)) return null;
+    return { jar: new CookieJar(json.cookies), savedAt: json.savedAt };
   } catch {
     return null;
   }
@@ -58,7 +62,7 @@ export function listUrl(currentUrl, page = 1, perPage = 12, method = 'productsLi
   return `${config.baseUrl}products?${q.toString()}`;
 }
 
-/** ¿La sesión ve precios? Devuelve { ok, sample } */
+/** ¿La sesión ve precios? */
 export async function validateSession(jar) {
   try {
     const html = await request(listUrl('sec/bebidas', 1, 24), { jar, retries: 2 });
@@ -70,168 +74,65 @@ export async function validateSession(jar) {
   }
 }
 
-async function importPlaywright() {
-  try {
-    return await import('playwright');
-  } catch {
-    throw new Error('Playwright no está instalado. Ejecutá: npm install');
+/** Devuelve un CookieJar con sesión válida o tira error explicando qué hacer. */
+export async function getSession() {
+  const tried = [];
+  const saved = await loadSavedSession();
+  if (saved) {
+    const v = await validateSession(saved.jar);
+    tried.push(`sesión guardada: ${v.ok ? 'ok' : 'vencida'}`);
+    if (v.ok) return { jar: saved.jar, source: 'sesión guardada', since: saved.savedAt };
   }
-}
-
-async function launchBrowser(chromium) {
-  try {
-    return await chromium.launch({ headless: true });
-  } catch (err) {
-    if (!/Executable doesn't exist|browserType.launch/i.test(err.message)) throw err;
-    log.info('Instalando Chromium para Playwright (una sola vez)…');
-    execSync(`npx playwright install ${process.env.CI ? '--with-deps ' : ''}chromium`, { stdio: 'inherit', cwd: config.root });
-    return chromium.launch({ headless: true });
+  if (config.manualCookie) {
+    const jar = CookieJar.fromHeader(config.manualCookie);
+    const v = await validateSession(jar);
+    tried.push(`CF_COOKIE: ${v.ok ? 'ok' : 'vencida o sin sucursal'}`);
+    if (v.ok) {
+      await saveSession(jar);
+      return { jar, source: 'CF_COOKIE' };
+    }
+  } else {
+    tried.push('CF_COOKIE vacío');
   }
+  const err = new Error(`No hay sesión con precios (${tried.join(' · ')}). Ingresá al sitio, elegí la sucursal y actualizá el secret CF_COOKIE con la cookie PHPSESSID (o corré "npm run login" en tu PC).`);
+  err.code = 'NO_SESSION';
+  throw err;
 }
 
 /**
- * Login con navegador real. Completa el mismo formulario que usa la web
- * (incluido el reCAPTCHA invisible que ejecuta la propia página).
+ * Ingreso asistido: abre un navegador VISIBLE en tu PC para que entres vos
+ * (formulario + reCAPTCHA como siempre). Cuando la sesión ya ve precios,
+ * guarda la cookie y la muestra para pegarla en el secret CF_COOKIE.
  */
-export async function loginWithBrowser() {
-  if (!hasCredentials()) {
-    throw new Error('Faltan datos de login: configurá CF_NAME, CF_CUIT, CF_PHONE, CF_EMAIL (y opcional CF_REGION, CF_SELLER).');
-  }
-  const acc = config.account;
-  const { chromium } = await importPlaywright();
-  const browser = await launchBrowser(chromium);
+export async function interactiveLogin({ timeoutMin = 10 } = {}) {
+  let chromium;
   try {
-    const context = await browser.newContext({ locale: 'es-AR', timezoneId: 'America/Argentina/Buenos_Aires', viewport: { width: 1366, height: 900 } });
+    ({ chromium } = await import('playwright'));
+  } catch {
+    throw new Error('Falta Playwright: ejecutá "npm install" y "npx playwright install chromium".');
+  }
+  const browser = await chromium.launch({ headless: false });
+  try {
+    const context = await browser.newContext({ locale: 'es-AR', viewport: null });
     const page = await context.newPage();
     await page.goto(config.baseUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForSelector('#userForm', { timeout: 30000 });
-
-    // Validamos que la sucursal exista en la provincia elegida
-    const sellersHtml = await page.evaluate(async ({ region, delivery }) => {
-      const r = await fetch('/seller?method=sellersLists', {
-        method: 'POST',
-        headers: { 'Content-type': 'application/x-www-form-urlencoded' },
-        body: `zoneId=${encodeURIComponent(region)}&deliveryType=${delivery === 'envio' ? 1 : 0}`,
-      });
-      return r.text();
-    }, acc);
-    const sellers = [...sellersHtml.matchAll(/<option value="(\d+)">([^<]+)<\/option>/g)].map((m) => ({ id: m[1], name: m[2] }));
-    if (!sellers.some((s) => s.id === acc.seller)) {
-      throw new Error(`La sucursal ${acc.seller} no existe en ${acc.region}. Disponibles: ${sellers.map((s) => `${s.id}=${s.name}`).join(' | ')}`);
+    log.info('Se abrió el navegador: tocá "Ingresar", elegí Comerciante → Retiro → provincia y sucursal, completá tus datos y confirmá.');
+    log.info(`Te espero hasta ${timeoutMin} minutos…`);
+    const deadline = Date.now() + timeoutMin * 60e3;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 3000));
+      const cookies = await context.cookies(config.baseUrl).catch(() => []);
+      const jar = new CookieJar();
+      for (const c of cookies) if (/^PHPSESSID$/i.test(c.name)) jar.cookies[c.name] = c.value;
+      if (!jar.header()) continue;
+      const v = await validateSession(jar);
+      if (v.ok) {
+        await saveSession(jar);
+        return jar;
+      }
     }
-
-    await page.waitForFunction(() => window.grecaptcha?.enterprise?.execute, null, { timeout: 45000 });
-
-    const navigation = page.waitForNavigation({ timeout: 60000, waitUntil: 'domcontentloaded' });
-    await page.evaluate(
-      async ({ acc, fallbackKey }) => {
-        const form = document.getElementById('userForm');
-        const setRadio = (name, value) => {
-          const el = form.querySelector(`input[name="${name}"][value="${value}"]`);
-          if (el) el.checked = true;
-        };
-        const setOption = (id, value) => {
-          const sel = form.querySelector(`#${id}`);
-          sel.innerHTML = `<option value="${value}" selected>${value}</option>`;
-          sel.value = value;
-        };
-        setRadio('customerType', 'business');
-        setRadio('delivery', acc.delivery);
-        form.querySelector('#selected_delivery').value = acc.delivery;
-        form.querySelector('#url_c').value = location.href;
-        setOption('region', acc.region);
-        setOption('seller', acc.seller);
-        form.querySelector('#user-name').value = acc.name;
-        form.querySelector('#user-cuit').value = acc.numberId;
-        form.querySelector('#user-phone').value = acc.phone;
-        form.querySelector('#user-email').value = acc.email;
-
-        const src = document.querySelector('script[src*="recaptcha/enterprise.js"]')?.src || '';
-        const key = new URL(src || 'https://x/?render=' + fallbackKey).searchParams.get('render') || fallbackKey;
-        const token = await new Promise((resolve, reject) => {
-          window.grecaptcha.enterprise.ready(() => window.grecaptcha.enterprise.execute(key, { action: 'signup' }).then(resolve, reject));
-        });
-        const add = (name, value) => {
-          const i = document.createElement('input');
-          i.type = 'hidden';
-          i.name = name;
-          i.value = value;
-          form.prepend(i);
-        };
-        add('token', token);
-        add('action', 'signup');
-        setTimeout(() => HTMLFormElement.prototype.submit.call(form), 50);
-      },
-      { acc, fallbackKey: RECAPTCHA_FALLBACK_KEY },
-    );
-    await navigation;
-    await page.waitForLoadState('domcontentloaded');
-
-    // Verificamos dentro del navegador que ya se vean precios
-    const check = await page.evaluate(async (url) => {
-      const r = await fetch(url);
-      const t = await r.text();
-      const prices = [...t.matchAll(/data-price="([^"]*)"/g)].map((m) => m[1]);
-      return { total: prices.length, numeric: prices.filter((p) => /^\d/.test(p)).length };
-    }, listUrl('sec/bebidas', 1, 24));
-
-    const cookies = await context.cookies(config.baseUrl);
-    const jar = new CookieJar();
-    for (const c of cookies) jar.cookies[c.name] = c.value;
-
-    if (!check.numeric) {
-      const msg = await page.evaluate(() => {
-        const el = [...document.querySelectorAll('.error-message, .error-message-button, .alert, .error')].map((e) => e.textContent.trim()).filter(Boolean);
-        return el.join(' | ').slice(0, 300);
-      });
-      throw new Error(`El login no habilitó los precios (${check.numeric}/${check.total}). ${msg ? 'Mensaje: ' + msg : 'Puede que el reCAPTCHA haya rechazado el navegador automático.'}`);
-    }
-    log.info(`Login OK: ${check.numeric}/${check.total} productos con precio.`);
-    return jar;
+    throw new Error('No se completó el ingreso a tiempo.');
   } finally {
     await browser.close().catch(() => {});
   }
-}
-
-/** Devuelve un CookieJar con sesión válida o tira error explicando qué falta. */
-export async function getSession({ forceLogin = false } = {}) {
-  const tried = [];
-  if (!forceLogin) {
-    const saved = await loadSavedSession();
-    if (saved) {
-      const v = await validateSession(saved);
-      tried.push(`guardada: ${v.ok ? 'ok' : 'vencida'}`);
-      if (v.ok) return { jar: saved, source: 'guardada' };
-    }
-    if (config.manualCookie) {
-      const jar = CookieJar.fromHeader(config.manualCookie);
-      const v = await validateSession(jar);
-      tried.push(`CF_COOKIE: ${v.ok ? 'ok' : 'inválida'}`);
-      if (v.ok) {
-        await saveSession(jar);
-        return { jar, source: 'cookie manual' };
-      }
-    }
-  }
-  if (hasCredentials()) {
-    let lastErr;
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const jar = await loginWithBrowser();
-        const v = await validateSession(jar);
-        if (!v.ok) throw new Error('La sesión del navegador no funciona fuera de él.');
-        await saveSession(jar);
-        return { jar, source: 'login automático' };
-      } catch (err) {
-        lastErr = err;
-        log.warn(`Login intento ${attempt} falló: ${err.message}`);
-      }
-    }
-    tried.push(`login: ${lastErr?.message}`);
-  } else {
-    tried.push('login: faltan CF_NAME/CF_CUIT/CF_PHONE/CF_EMAIL');
-  }
-  const err = new Error(`No hay sesión con precios. Intentos → ${tried.join(' · ')}`);
-  err.code = 'NO_SESSION';
-  throw err;
 }

@@ -21,13 +21,14 @@ mayores bajas, buscador con precio por kg/l y gráfico del historial de cada pro
 
 ```
 GitHub Actions (cada 30 min)
-  ├─ sesión con tu sucursal (guardada cifrada; si vence, login automático)
+  ├─ usa tu sesión de Carrefour Maxi (cookie guardada como secret, cifrada entre corridas)
   ├─ catálogo completo: ~11 pedidos al sitio (1.000 productos por pedido)
   ├─ precio minorista en carrefour.com.ar (API pública) por EAN, de a tandas
   ├─ reglas de detección + guardas anti falsos positivos
   ├─ avisos: Telegram / ntfy / Discord (sin repetir el mismo aviso)
   ├─ datos → rama "data" (products, history, alerts, retail, status)
   └─ web → GitHub Pages
+GitHub Actions (cada 10 min) → "keepalive": toca el sitio para que la sesión no venza
 ```
 
 **Robustez**
@@ -36,40 +37,52 @@ GitHub Actions (cada 30 min)
 - Si “baja” más del 25 % del catálogo a la vez, se asume un **error de lectura** y **no** se notifica.
 - La primera corrida sólo guarda la base de precios (no dispara alertas).
 - No repite avisos: el mismo producto/tipo vuelve a avisar sólo si baja un 3 % más o pasan 24 h.
-- Si falla 2 veces seguidas te avisa por Telegram/ntfy (y luego cada 6 h); a la 3ª, GitHub te manda un mail.
+- Si se vence la sesión te avisa enseguida por Telegram/ntfy (y luego cada 6 h); a la 3ª falla seguida GitHub te manda un mail.
 - La sesión se guarda **cifrada** (AES-256-GCM) entre corridas; nunca se publica nada personal.
 - Tests automáticos (parser, reglas y un ciclo completo contra un sitio simulado) antes de cada corrida.
 
 ---
 
-## Puesta en marcha (10 minutos)
+## Puesta en marcha
 
 ### 1. Activar la web
 **Settings → Pages → Build and deployment → Source: `GitHub Actions`.**
-La web va a quedar en `https://<usuario>.github.io/<repo>/`.
+La web queda en `https://<usuario>.github.io/<repo>/`.
 
-### 2. Cargar los secrets
+### 2. Conseguir tu cookie de sesión (necesitás una compu)
+El sitio sólo muestra precios después de ingresar y elegir sucursal, y ese ingreso tiene **reCAPTCHA**:
+lo tenés que hacer vos (una persona), el monitor después reutiliza esa sesión.
+
+**Opción A — Chrome / Edge en la compu**
+1. Entrá a <https://comerciante.carrefour.com.ar> → **Ingresar** → Comerciante → Retiro en sucursal →
+   **ENTRE RIOS** → **GUALEGUAYCHU – Primera Junta y Ruta 136** → tus datos → Ingresar.
+2. Apretá **F12** → pestaña **Application / Aplicación** → **Cookies** → `https://comerciante.carrefour.com.ar`.
+3. Copiá el valor de **`PHPSESSID`**.
+
+**Opción B — con Node instalado:** `npm install && npx playwright install chromium && npm run login`
+abre un navegador, ingresás normalmente y al terminar te muestra la línea para copiar.
+
+> Desde el iPhone solo no se puede leer la cookie (Safari no tiene herramientas de desarrollador).
+> En Mac: Safari → Ajustes → Avanzado → “Mostrar menú Desarrollo” → Desarrollo → Mostrar inspector web → Almacenamiento → Cookies.
+
+### 3. Cargar los secrets
 **Settings → Secrets and variables → Actions → New repository secret**
 
 | Secret | Qué poner |
 |---|---|
-| `CF_NAME` | Nombre y apellido (como en el formulario del sitio) |
-| `CF_CUIT` | CUIT / DNI |
-| `CF_PHONE` | Teléfono con código de área (ej. `03446…`) |
-| `CF_EMAIL` | Email |
+| `CF_COOKIE` | `PHPSESSID=` + el valor que copiaste (ej. `PHPSESSID=abc123…`) |
 | `SESSION_SECRET` | Cualquier texto largo y aleatorio (cifra la sesión guardada) |
 | `TELEGRAM_BOT_TOKEN` | Token del bot (ver abajo) |
 | `TELEGRAM_CHAT_ID` | Tu chat id (ver abajo) |
 
 Opcionales: `NTFY_TOPIC` (avisos push con la app **ntfy**, sin registrarse: elegí un nombre difícil de adivinar),
-`DISCORD_WEBHOOK_URL`, `CF_COOKIE` (plan B, ver más abajo).
+`DISCORD_WEBHOOK_URL`.
 
-**Variables** (pestaña *Variables*, no son secretas):
+**Variables** (pestaña *Variables*, no son secretas; todas opcionales):
 
 | Variable | Default | |
 |---|---|---|
-| `CF_REGION` | `ENTRE RIOS` | Provincia tal cual aparece en el sitio |
-| `CF_SELLER` | `240` | Número de sucursal (`npm run sucursales -- "ENTRE RIOS"`) |
+| `CF_REGION` / `CF_SELLER` | `ENTRE RIOS` / `240` | Sólo para mostrar en la web (la sucursal real es la de tu sesión) |
 | `ALERT_DROP_PCT` | `0.15` | Baja mínima para “baja fuerte” |
 | `ALERT_ERROR_RATIO` | `0.5` | “Posible error” si el precio queda ≤ 50 % del anterior/habitual |
 | `ALERT_RESALE_MARGIN` | `0.35` | Margen mínimo de reventa |
@@ -77,33 +90,22 @@ Opcionales: `NTFY_TOPIC` (avisos push con la app **ntfy**, sin registrarse: eleg
 | `NOTIFY_TYPES` | `error,reventa,baja,minimo` | Qué tipos mandan push (el resto sólo en la web) |
 | `NOTIFY_MAX_PER_RUN` | `25` | Tope de avisos por corrida |
 
-Sucursales de Entre Ríos: `266` Paraná (Don Bosco) · `244` Paraná (Yrigoyen) · `233` Concordia · `240` Gualeguaychú.
+Sucursales de Entre Ríos: `266` Paraná (Don Bosco) · `244` Paraná (Yrigoyen) · `233` Concordia · `240` Gualeguaychú
+(`npm run sucursales -- "ENTRE RIOS"` para otras provincias).
 
-### 3. Telegram (recomendado)
+### 4. Telegram (recomendado)
 1. En Telegram hablale a **@BotFather** → `/newbot` → copiá el token → secret `TELEGRAM_BOT_TOKEN`.
 2. Mandale cualquier mensaje a tu bot nuevo.
 3. Abrí `https://api.telegram.org/bot<TOKEN>/getUpdates` y copiá el número de `"chat":{"id": …}` → secret `TELEGRAM_CHAT_ID`
    (o corré `TELEGRAM_BOT_TOKEN=… node src/telegram-id.js`).
 
-### 4. Arrancar
+### 5. Arrancar
 **Actions → Monitor de precios → Run workflow.** Desde ahí corre solo cada 30 minutos.
 La primera corrida guarda la base; las alertas empiezan desde la segunda.
 
----
-
-## Sesión / login
-
-El sitio sólo muestra precios después de elegir sucursal en el formulario de ingreso (nombre, CUIT, teléfono, email),
-que está protegido con **reCAPTCHA Enterprise invisible**. El monitor lo resuelve así:
-
-1. Reutiliza la **sesión guardada** de la corrida anterior mientras siga válida.
-2. Si venció, abre un **navegador real (Chromium/Playwright)**, completa el mismo formulario y deja que la página
-   ejecute su propio reCAPTCHA, como cuando entrás desde el celular.
-3. **Plan B** si el login automático no pasa: entrá al sitio desde tu navegador, elegí la sucursal, copiá la cookie
-   `PHPSESSID` (herramientas de desarrollador → Aplicación → Cookies) y guardala en el secret `CF_COOKIE`
-   como `PHPSESSID=valor`. Cuando venza, el monitor te avisa.
-
-Para probar el login: **Actions → Run workflow → “Forzar login nuevo”**.
+### Cuando se vence la sesión
+Te llega un aviso **“Se venció la sesión de Carrefour Maxi”** y la web lo muestra arriba.
+Repetí el paso 2 y actualizá el secret `CF_COOKIE`. El monitor sigue solo en la próxima corrida.
 
 ---
 
@@ -113,9 +115,10 @@ Para probar el login: **Actions → Run workflow → “Forzar login nuevo”**.
 npm install
 cp .env.example .env    # completar los datos
 set -a; . ./.env; set +a
+npm run login           # ingresás en un navegador visible y queda la sesión guardada
 npm run check           # corrida de prueba: no guarda ni notifica
 npm start               # una corrida
-npm run daemon          # corre cada 30 min y sirve la web en http://localhost:8080
+npm run daemon          # cada 30 min + keepalive cada 10 min + web en http://localhost:8080
 npm test
 ```
 
@@ -130,7 +133,7 @@ npm test
 ```
 src/
   run.js        una corrida completa
-  session.js    sesión cifrada, validación y login con navegador
+  session.js    sesión cifrada, validación e ingreso asistido
   catalog.js    descarga del catálogo por sección
   parse.js      parser de las tarjetas de producto y cantidades (kg/l/u)
   retail.js     precios de carrefour.com.ar (minorista) por EAN

@@ -1,9 +1,10 @@
 // Una corrida completa: sesión → catálogo → minorista → detección → avisos → guardar.
 // Uso:  node src/run.js            (corrida normal)
 //       node src/run.js --dry-run  (no notifica ni guarda)
-//       node src/run.js --login-only
+//       node src/run.js --check    (sólo verifica la sesión)
+//       node src/run.js --login    (ingreso asistido en un navegador visible)
 import { config } from './config.js';
-import { getSession } from './session.js';
+import { getSession, interactiveLogin, saveSession } from './session.js';
 import { fetchCatalog } from './catalog.js';
 import { refreshRetail } from './retail.js';
 import { detectAll, appendHistory, shouldNotify, effectivePrice, round2 } from './detect.js';
@@ -42,12 +43,14 @@ async function recordFailure(db, err, startedAt) {
   status.runs = [{ at: status.lastRun, ok: false, error: err.message.slice(0, 300), ms: Date.now() - startedAt }, ...(status.runs || [])].slice(0, 96);
   if (!DRY) await writeJson('status.json', status, { pretty: true });
 
-  // Aviso de falla: a la 2ª falla seguida y luego cada ~6 h
+  // Aviso de falla: sesión vencida → enseguida (hay que renovarla);
+  // otros errores → a la 2ª falla seguida. Luego, como mucho cada ~6 h.
   const state = db.state;
   const lastWarn = state.lastFailureNoticeAt ? Date.parse(state.lastFailureNoticeAt) : 0;
-  if (!DRY && status.consecutiveFailures >= 2 && Date.now() - lastWarn > 6 * 3600e3) {
-    const hint = err.code === 'NO_SESSION' ? '\nRevisá los secrets CF_* o pegá una cookie nueva en CF_COOKIE.' : '';
-    await notifySystem('El monitor no pudo leer precios', `${err.message.slice(0, 600)}${hint}`);
+  const threshold = err.code === 'NO_SESSION' ? 1 : 2;
+  if (!DRY && status.consecutiveFailures >= threshold && Date.now() - lastWarn > 6 * 3600e3) {
+    const title = err.code === 'NO_SESSION' ? 'Se venció la sesión de Carrefour Maxi' : 'El monitor no pudo leer precios';
+    await notifySystem(title, err.message.slice(0, 700));
     state.lastFailureNoticeAt = new Date().toISOString();
     await writeJson('state.json', state);
   }
@@ -63,18 +66,25 @@ async function main() {
 
   log.info(`Inicio corrida · sucursal ${config.account.seller} (${config.account.region})${DRY ? ' · DRY-RUN' : ''}`);
 
+  if (args.has('--login')) {
+    const jar = await interactiveLogin();
+    log.info('¡Listo! Sesión con precios. Pegá esta línea en el secret CF_COOKIE de GitHub:');
+    console.log(`\n${jar.header()}\n`);
+    return;
+  }
+
   // 1) Sesión
   let session;
   try {
-    session = await getSession({ forceLogin: args.has('--force-login') });
-    log.info(`Sesión: ${session.source}`);
+    session = await getSession();
+    log.info(`Sesión: ${session.source}${session.since ? ` (desde ${session.since})` : ''}`);
   } catch (err) {
     log.error(err.message);
     await recordFailure(db, err, startedAt);
     process.exitCode = 1;
     return;
   }
-  if (args.has('--login-only')) return;
+  if (args.has('--check')) return;
 
   // 2) Catálogo
   let catalog;
@@ -223,6 +233,7 @@ async function main() {
   });
   status.runs = [{ at: nowIso, ok: true, products: current.size, changes, alerts: newAlerts.length, sent, ms, warnings: warnings.length ? warnings : undefined }, ...(status.runs || [])].slice(0, 96);
 
+  await saveSession(session.jar); // por si el sitio renovó la cookie
   await writeJson('history.json', db.history);
   await writeJson('products.json', { updatedAt: nowIso, seller: config.account.seller, region: config.account.region, count: items.length, items });
   await writeJson('alerts.json', { updatedAt: nowIso, alerts });

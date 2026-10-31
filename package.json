@@ -10,8 +10,9 @@
   "scripts": {
     "start": "node src/run.js",
     "daemon": "node src/daemon.js",
-    "login": "node src/run.js --login-only",
+    "login": "node src/run.js --login",
     "check": "node src/run.js --dry-run",
+    "session": "node src/run.js --check",
     "test": "node --test \"test/*.test.js\"",
     "serve": "node src/serve.js",
     "sucursales": "node src/sucursales.js"

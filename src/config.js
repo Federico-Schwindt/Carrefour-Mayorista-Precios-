@@ -25,18 +25,14 @@ export const config = {
   retailApi: str('RETAIL_API', 'https://www.carrefour.com.ar/api/catalog_system/pub/products/search'),
   dashboardUrl: str('DASHBOARD_URL'),
 
-  // ---- Cuenta / sucursal (van como SECRETS, nunca en el código) ----
+  // ---- Sucursal (sólo informativo; la sucursal real la define la sesión) ----
   account: {
-    name: str('CF_NAME'),
-    numberId: str('CF_CUIT'),
-    phone: str('CF_PHONE'),
-    email: str('CF_EMAIL'),
     region: str('CF_REGION', 'ENTRE RIOS'),
     seller: str('CF_SELLER', '240'), // 240 = GUALEGUAYCHU - Primera Junta y Ruta 136
     delivery: str('CF_DELIVERY', 'retiro'), // retiro | envio
   },
-  // Cookie de sesión pegada a mano (alternativa al login automático).
-  // Formato: "PHPSESSID=xxxx" o "PHPSESSID=xxxx; otra=yyy"
+  // Cookie de una sesión abierta a mano en el sitio (secret CF_COOKIE).
+  // Formato: "PHPSESSID=xxxx"
   manualCookie: str('CF_COOKIE'),
   // Clave para cifrar la sesión que se guarda entre ejecuciones.
   sessionSecret: str('SESSION_SECRET'),
@@ -109,8 +105,3 @@ export const config = {
   alertsKeep: num('ALERTS_KEEP', 1500),
   intervalMinutes: num('INTERVAL_MINUTES', 30),
 };
-
-export function hasCredentials() {
-  const a = config.account;
-  return Boolean(a.name && a.numberId && a.phone && a.email && a.region && a.seller);
-}

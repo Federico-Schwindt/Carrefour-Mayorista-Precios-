@@ -1,0 +1,28 @@
+name: Mantener sesión viva
+
+# Toca el sitio cada 10 minutos con tu cookie para que la sesión PHP no venza
+# por inactividad entre una lectura completa y la siguiente. Tarda ~5 segundos.
+on:
+  schedule:
+    - cron: '5-55/10 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping
+        env:
+          CF_COOKIE: ${{ secrets.CF_COOKIE }}
+        run: |
+          if [ -z "$CF_COOKIE" ]; then echo "CF_COOKIE no configurado"; exit 0; fi
+          url='https://comerciante.carrefour.com.ar/products?currentUrl=sec%2Fbebidas&filters=&orderBy=default&currentPage=1&itemsPerPage=3&method=productsList'
+          body=$(curl -sS --max-time 40 --retry 2 -H "Cookie: $CF_COOKIE" -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36' "$url" || true)
+          if echo "$body" | grep -qE 'data-price="[0-9]'; then
+            echo "Sesión viva ✅"
+          else
+            echo "::warning::La sesión no muestra precios (vencida o sin sucursal). Renová el secret CF_COOKIE."
+          fi
