@@ -358,7 +358,7 @@ function renderHeader() {
     : '';
   const st = S.status?.sources?.[curId()];
   const n = st?.products ? ` · ${fmt(st.products)} productos` : '';
-  $('#subline').textContent = SET.kind === 'mayorista' ? `Maxi ${title(srcOf(SET.branch)?.name || '')}${n}` : `carrefour.com.ar${n}`;
+  $('#subline').textContent = SET.kind === 'mayorista' ? `Maxi ${title(srcOf(SET.branch)?.name || '')}${n}` : `carrefour.com.ar · precio online${n}`;
   const btn = $('#statusBtn');
   btn.classList.remove('is-ok', 'is-warn', 'is-bad');
   if (!st?.lastSuccess) {
@@ -790,6 +790,7 @@ async function openDetail(id, ean) {
         <div><button type="button" class="btn btn--ghost" data-dl="product">${icon('download')}Descargar historial</button></div>
       </div>
       ${alerts.length ? `<div class="d-sec"><h3>Alertas</h3><ul class="row__why">${alerts.map((a) => `<li><b>${esc(TYPE[a.type]?.label || a.type)}</b> · ${esc(fmtDate(a.ts))} · ${ars(a.price)} — ${esc((a.reasons || [])[0] || '')}</li>`).join('')}</ul></div>` : ''}
+      ${isMay ? '' : '<p class="group__hint" style="margin:0">Es el precio online general de carrefour.com.ar. Si en la web tenés elegida una tienda para retirar o te envían desde una sucursal, el precio puede ser distinto: cada tienda tiene el suyo.</p>'}
       <p class="mono">${/^\d+$/.test(ean) ? `EAN ${esc(ean)} · ` : ''}${u ? `${ars(u.price)} por ${u.u} · ` : ''}visto ${esc(ago(v.l))}</p>`;
     if (series.length) drawChart(series, r?.price);
   };
