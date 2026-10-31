@@ -20,7 +20,7 @@ concurrency:
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 28
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -28,7 +28,13 @@ jobs:
       TZ: America/Argentina/Buenos_Aires
       DATA_DIR: data
       # --- Sesión / sucursal (Settings → Secrets and variables → Actions) ---
+      # Una cookie por sucursal Maxi (la sucursal se detecta sola)
       CF_COOKIE: ${{ secrets.CF_COOKIE }}
+      CF_COOKIE_2: ${{ secrets.CF_COOKIE_2 }}
+      CF_COOKIE_3: ${{ secrets.CF_COOKIE_3 }}
+      CF_COOKIE_4: ${{ secrets.CF_COOKIE_4 }}
+      CF_COOKIE_5: ${{ secrets.CF_COOKIE_5 }}
+      CF_COOKIE_6: ${{ secrets.CF_COOKIE_6 }}
       CF_REGION: ${{ vars.CF_REGION || 'ENTRE RIOS' }}
       CF_SELLER: ${{ vars.CF_SELLER || '240' }}
       SESSION_SECRET: ${{ secrets.SESSION_SECRET }}

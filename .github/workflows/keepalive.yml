@@ -1,7 +1,7 @@
 name: Mantener sesión viva
 
-# Toca el sitio cada 10 minutos con tu cookie para que la sesión PHP no venza
-# por inactividad entre una lectura completa y la siguiente. Tarda ~5 segundos.
+# Toca el sitio cada 10 minutos con cada cookie (una por sucursal) para que las
+# sesiones no venzan por inactividad entre una lectura completa y la siguiente.
 on:
   schedule:
     - cron: '5-55/10 * * * *'
@@ -12,17 +12,27 @@ permissions: {}
 jobs:
   ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 4
     steps:
       - name: Ping
         env:
           CF_COOKIE: ${{ secrets.CF_COOKIE }}
+          CF_COOKIE_2: ${{ secrets.CF_COOKIE_2 }}
+          CF_COOKIE_3: ${{ secrets.CF_COOKIE_3 }}
+          CF_COOKIE_4: ${{ secrets.CF_COOKIE_4 }}
+          CF_COOKIE_5: ${{ secrets.CF_COOKIE_5 }}
+          CF_COOKIE_6: ${{ secrets.CF_COOKIE_6 }}
         run: |
-          if [ -z "$CF_COOKIE" ]; then echo "CF_COOKIE no configurado"; exit 0; fi
           url='https://comerciante.carrefour.com.ar/products?currentUrl=sec%2Fbebidas&filters=&orderBy=default&currentPage=1&itemsPerPage=3&method=productsList'
-          body=$(curl -sS --max-time 40 --retry 2 -H "Cookie: $CF_COOKIE" -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36' "$url" || true)
-          if echo "$body" | grep -qE 'data-price="[0-9]'; then
-            echo "Sesión viva ✅"
-          else
-            echo "::warning::La sesión no muestra precios (vencida o sin sucursal). Renová el secret CF_COOKIE."
-          fi
+          ua='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
+          for name in CF_COOKIE CF_COOKIE_2 CF_COOKIE_3 CF_COOKIE_4 CF_COOKIE_5 CF_COOKIE_6; do
+            value="${!name}"
+            [ -z "$value" ] && continue
+            case "$value" in *=*) cookie="$value" ;; *) cookie="PHPSESSID=$value" ;; esac
+            body=$(curl -sS --max-time 40 --retry 2 -H "Cookie: $cookie" -A "$ua" "$url" || true)
+            if echo "$body" | grep -qE 'data-price="[0-9]'; then
+              echo "$name: sesión viva ✅"
+            else
+              echo "::warning::$name: la sesión no muestra precios (vencida o sin sucursal). Renová ese secret."
+            fi
+          done

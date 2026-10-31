@@ -45,7 +45,7 @@ export function parseDataPrice(v) {
 const UNIT_RE = '(kgs?|kilos?|k|grs?|grm|gramos?|g|ml|cc|cm3|lts?|litros?|l)';
 
 /** Cantidad neta a partir de la descripción: { qty, unit: 'kg'|'l'|'u' } */
-export function parseQuantity(description) {
+export function parseQuantity(description, { multipack = true } = {}) {
   const d = ` ${String(description || '').toLowerCase().replace(/,/g, '.')} `;
   const norm = (n, u) => {
     u = u.replace(/\.$/, '');
@@ -59,6 +59,8 @@ export function parseQuantity(description) {
   let m = d.match(new RegExp(`(?<![\\w.])(\\d+)\\s*(?:u\\.?|un\\.?|unid\\.?|unidades)?\\s*x\\s*(\\d+(?:\\.\\d+)?)\\s*${UNIT_RE}\\b`));
   if (m) {
     const base = norm(Number(m[2]), m[3]);
+    // En Maxi el precio es POR UNIDAD aunque la descripción diga "12 x 90 grs" (bulto)
+    if (base && !multipack) return base;
     if (base && Number(m[1]) > 1 && Number(m[1]) <= 200) return { qty: base.qty * Number(m[1]), unit: base.unit };
   }
   // la última medida que aparezca: "x 1.5 lt", "500grs", "1kg"

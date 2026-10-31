@@ -1,27 +1,43 @@
 # 📉 Radar Maxi — alertas de precios de Carrefour
 
-Monitor automático con **dos fuentes separadas**, cada una con sus propias alertas, datos y color en la web:
+Monitor automático con **fuentes separadas**, cada una con sus propias alertas, datos y color en la web:
 
 | | Fuente | Login | Productos |
 |---|---|---|---|
-| 🏪 **MAYORISTA** | comerciante.carrefour.com.ar (Carrefour Maxi, sucursal **Gualeguaychú**) | sí (cookie de tu sesión) | ~4.000 |
+| 🏪 **MAYORISTA** | comerciante.carrefour.com.ar — **una por sucursal Maxi** (Gualeguaychú, Zárate, Escobar…) | sí (una cookie por sucursal) | ~5.000 por sucursal |
 | 🛒 **MINORISTA** | www.carrefour.com.ar (API pública) | **no** | ~12.000 con stock (supermercado) |
 
-Cada **30 minutos** lee los dos catálogos, guarda el historial de precios y te avisa al celular. Cada aviso arranca con
-**🏪 MAYORISTA** o **🛒 MINORISTA** para que nunca se mezclen:
+Cada **30 minutos** lee todo, guarda el historial de precios y te avisa al celular. Cada aviso arranca con
+**🏪 MAYORISTA · Maxi ZARATE** o **🛒 MINORISTA** para que nunca se mezclen.
+
+### 🔥 Oportunidades (funcionan desde la primera lectura, sin historial)
+
+| Señal | Qué significa | Aviso push |
+|---|---|---|
+| 🏷️ **Gran descuento** | Precio 30 %+ debajo del precio tachado (Maxi) o de lista (minorista) | desde 50 % (Maxi) / 60 % (minorista) |
+| 🏪 **Entre sucursales** | Más barato que en las otras sucursales Maxi | desde 35 % |
+| 💰 **Reventa** | En carrefour.com.ar cuesta 35 %+ más que en Maxi | desde 150 % |
+| 🛒 **Más barato que Maxi** | En carrefour.com.ar sale menos que en Maxi | desde 40 % |
+| ⚖️ **Precio por kg** | Precio por kg/l muy bajo para su categoría (sólo en categorías parejas) | sólo en la web |
+
+Si de golpe aparecen muchas (primera vez, sucursal nueva) llega **un solo resumen**, no una lluvia de avisos.
+
+### 🚨 Alertas con historial (a partir de la segunda lectura)
 
 | Alerta | Cuándo salta |
 |---|---|
-| 🚨 **Posible error de precio** | Bajó **50 % o más** de golpe · menos de la mitad de su precio habitual · **65 %+ por debajo del precio de lista** · precio por kg/l **70 % menor** que el resto de su categoría · (mayorista) menos del 45 % del precio minorista |
-| 💰 **Buen margen para reventa** (sólo mayorista) | En **carrefour.com.ar** cuesta **35 % o más** que en Maxi |
-| 📉 **Baja fuerte** | Mayorista: bajó **15 %+**. Minorista: bajó **30 %+** (hay muchas promos, por eso el umbral es más alto) |
-| 🏆 **Mínimo histórico** | Es el precio más bajo registrado y está 8 % por debajo del habitual |
+| 🚨 **Posible error de precio** | Bajó **50 %+** de golpe · menos de la mitad de su precio habitual · **65 %+ debajo del precio de lista** · precio por kg/l **70 %** menor que su categoría · (Maxi) menos del 45 % del precio minorista |
+| 💰 **Buen margen para reventa** (Maxi) | Al bajar, pasa a costar 35 %+ menos que en carrefour.com.ar |
+| 📉 **Baja fuerte** | Maxi: **15 %+**. Minorista: **30 %+** (hay muchas promos) |
+| 🏆 **Mínimo histórico** | El precio más bajo registrado y 8 % debajo del habitual |
 
-La **web** (GitHub Pages, gratis) tiene un selector **🏪 Mayorista / 🛒 Minorista** arriba (la barra cambia de color:
-azul mayorista, verde minorista) y cada producto lleva su insignia. Pestañas: alertas, reventa (mayorista), mayores bajas,
-buscador con precio por kg/l y gráfico del historial.
+### 🌐 Web
+Selector **🏪 Mayorista / 🛒 Minorista** (azul / verde) y, en mayorista, una pestaña por **sucursal**. Pestañas:
+🔥 Oportunidades · Alertas · Reventa · Bajas · Buscar · Estado. En cada producto: gráfico del historial y
+**comparación entre sucursales y con el minorista**.
 
----
+**⬇️ Descargas (CSV, se abren en Excel):** historial de un producto (botón en el detalle), lista de precios y
+historial completo de la sucursal (pestaña Buscar) y las oportunidades.
 
 ## Cómo funciona
 
@@ -32,7 +48,8 @@ GitHub Actions (cada 30 min)
   │     catálogo completo en ~11 pedidos; el margen de reventa usa los precios minoristas
   ├─ reglas de detección + guardas anti falsos positivos
   ├─ avisos: Telegram / ntfy / Discord (sin repetir el mismo aviso)
-  ├─ datos → rama "data": mayorista (products/history/alerts.json) y minorista (min-*.json), separados
+  ├─ oportunidades sin historial (descuento, entre sucursales, vs minorista, por kg)
+  ├─ datos → rama "data": por sucursal (may-<sucursal>-*.json) y minorista (min-*.json), separados
   └─ web → GitHub Pages
 GitHub Actions (cada 10 min) → "keepalive": toca el sitio para que la sesión no venza
 ```
@@ -77,7 +94,8 @@ abre un navegador, ingresás normalmente y al terminar te muestra la línea para
 
 | Secret | Qué poner |
 |---|---|
-| `CF_COOKIE` | `PHPSESSID=` + el valor que copiaste (ej. `PHPSESSID=abc123…`) |
+| `CF_COOKIE` | `PHPSESSID=` + el valor que copiaste (ej. `PHPSESSID=abc123…`; también vale sólo el valor) |
+| `CF_COOKIE_2`, `CF_COOKIE_3`… | Cookies de otras sucursales (ver “Sumar más sucursales”) |
 | `SESSION_SECRET` | Cualquier texto largo y aleatorio (cifra la sesión guardada) |
 | `TELEGRAM_BOT_TOKEN` | Token del bot (ver abajo) |
 | `TELEGRAM_CHAT_ID` | Tu chat id (ver abajo) |
@@ -110,6 +128,16 @@ Sucursales de Entre Ríos: `266` Paraná (Don Bosco) · `244` Paraná (Yrigoyen)
 2. Mandale cualquier mensaje a tu bot nuevo.
 3. Abrí `https://api.telegram.org/bot<TOKEN>/getUpdates` y copiá el número de `"chat":{"id": …}` → secret `TELEGRAM_CHAT_ID`
    (o corré `TELEGRAM_BOT_TOKEN=… node src/telegram-id.js`).
+
+### Sumar más sucursales (Zárate, Escobar…)
+Cada sucursal necesita **su propia cookie**. En el iPhone:
+1. **Ajustes → Safari → Avanzado → Datos de sitios web** → buscá `carrefour` → **eliminá** `comerciante.carrefour.com.ar`
+   (así el siguiente ingreso crea una sesión nueva y no pisa la de Gualeguaychú).
+2. Entrá al sitio → Ingresar → Comerciante → Retiro → **BS AS (NORTE)** → **ZARATE - Av. Lavalle 1879**
+   (o **CARREFOUR MAXI ESCOBAR - Mateo Gelves 530**) → tus datos.
+3. Copiá la cookie `PHPSESSID` y cargala como secret **`CF_COOKIE_2`** (Escobar en **`CF_COOKIE_3`**, etc.).
+
+El monitor detecta solo de qué sucursal es cada cookie. Si una vence, las demás siguen funcionando.
 
 ### 5. Arrancar
 **Actions → Monitor de precios → Run workflow.** Desde ahí corre solo cada 30 minutos.

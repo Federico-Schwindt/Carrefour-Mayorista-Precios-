@@ -195,3 +195,25 @@ body[data-source="minorista"] .sources button.active { color: var(--header-min);
 @media (min-width: 720px) { .status-grid { grid-template-columns: 1fr 1fr; } }
 body[data-source="minorista"] { --brand: #0d7a4f; }
 @media (prefers-color-scheme: dark) { body[data-source="minorista"] { --brand: #2fae74; } }
+
+/* ---- Sucursales, oportunidades, descargas ---- */
+body[data-source="mayorista"] .only-min { display: none; }
+.branches { display: flex; gap: 6px; max-width: 960px; margin: 8px auto 0; overflow-x: auto; scrollbar-width: none; }
+.branches::-webkit-scrollbar { display: none; }
+.branches:empty { display: none; }
+.branches button {
+  flex: 0 0 auto; border: 1px solid rgba(255,255,255,.35); background: transparent; color: #fff;
+  border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.branches button.active { background: rgba(255,255,255,.95); color: var(--header); }
+.branches button .stale { opacity: .7; font-weight: 400; }
+.btn.small { padding: 7px 12px; font-size: 13px; border: 1px solid var(--line); cursor: pointer; }
+.dl-row { flex-wrap: wrap; margin-bottom: 8px; }
+.sig { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; margin: 0 4px 4px 0; background: var(--resale-bg); color: var(--resale); }
+.sig.descuento { background: var(--error-bg); color: var(--error); }
+.sig.sucursal { background: var(--may-bg); color: var(--may); }
+.sig.bajoMayorista { background: var(--mnr-bg); color: var(--mnr); }
+.sig.kilo { background: var(--min-bg); color: var(--min); }
+.compare { width: 100%; font-size: 13.5px; margin-top: 10px; }
+.compare td { padding: 5px 6px; }
+.compare tr.me td { font-weight: 700; }

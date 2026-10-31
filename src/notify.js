@@ -4,7 +4,7 @@ import { request } from './http.js';
 import { TYPE_LABEL } from './detect.js';
 import { log } from './log.js';
 
-const EMOJI = { error: '🚨', reventa: '💰', baja: '📉', minimo: '🏆', sistema: '⚙️' };
+const EMOJI = { error: '🚨', oportunidad: '🔥', reventa: '💰', baja: '📉', minimo: '🏆', sistema: '⚙️' };
 const ars = (n) => (n || n === 0 ? `$${Math.round(n).toLocaleString('es-AR')}` : '—');
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -21,13 +21,15 @@ export const productUrl = (ean) => `${config.baseUrl}p/${ean}`;
 export const imageUrl = (ean) => `https://tupedido.carrefour.com.ar/imagenesPDA/${ean}.jpg`;
 export const SOURCE_TAG = { mayorista: '🏪 MAYORISTA · Carrefour Maxi', minorista: '🛒 MINORISTA · carrefour.com.ar' };
 const isMin = (a) => a.source === 'minorista';
+const tagOf = (a) => (isMin(a) ? SOURCE_TAG.minorista : a.branch ? `🏪 MAYORISTA · Maxi ${a.branch}` : SOURCE_TAG.mayorista);
+const shortTag = (a) => (isMin(a) ? '🛒 MINORISTA' : a.branch ? `🏪 MAYORISTA ${a.branch}` : '🏪 MAYORISTA');
 const linkOf = (a) => (isMin(a) ? a.url || 'https://www.carrefour.com.ar/' : productUrl(a.ean));
 const imageOf = (a) => a.image || imageUrl(a.ean);
 
 export function formatAlert(a, html = true) {
   const b = (s) => (html ? `<b>${esc(s)}</b>` : s);
   const lines = [];
-  lines.push(b(SOURCE_TAG[a.source] || SOURCE_TAG.mayorista));
+  lines.push(b(tagOf(a)));
   lines.push(`${EMOJI[a.type] || '🔔'} ${b(String(TYPE_LABEL[a.type] || a.type).toUpperCase())}`);
   lines.push(b(a.name));
   let priceLine = `💲 ${ars(a.price)}`;
@@ -43,7 +45,7 @@ export function formatAlert(a, html = true) {
   if (html) {
     const links = [`<a href="${esc(linkOf(a))}">${isMin(a) ? 'Ver en carrefour.com.ar' : 'Ver en Carrefour Maxi'}</a>`];
     if (a.retailUrl) links.push(`<a href="${esc(a.retailUrl)}">Minorista</a>`);
-    if (config.dashboardUrl) links.push(`<a href="${config.dashboardUrl}#${isMin(a) ? 'min' : 'may'}=${a.ean}">Historial</a>`);
+    if (config.dashboardUrl) links.push(`<a href="${config.dashboardUrl}#src=${encodeURIComponent(a.sourceId || (isMin(a) ? 'min' : 'may'))}&p=${a.ean}">Historial</a>`);
     lines.push(links.join(' · '));
   }
   return lines.join('\n');
@@ -99,11 +101,11 @@ export async function notifyAlert(a) {
     const plain = formatAlert(a, false).split('\n').slice(2).join('\n');
     results.push(
       sendNtfy({
-        title: `${isMin(a) ? '🛒 MINORISTA' : '🏪 MAYORISTA'} · ${TYPE_LABEL[a.type] || a.type}: ${ars(a.price)}`,
+        title: `${shortTag(a)} · ${TYPE_LABEL[a.type] || a.type}: ${ars(a.price)}`,
         body: plain,
         click: linkOf(a),
         image: imageOf(a),
-        priority: a.type === 'error' ? 5 : 4,
+        priority: a.type === 'error' || a.type === 'oportunidad' ? 5 : 4,
         tags: [a.type],
       }),
     );
@@ -111,7 +113,7 @@ export async function notifyAlert(a) {
   if (ch.discord) {
     results.push(
       sendDiscord('', {
-        title: `${isMin(a) ? '🛒 MINORISTA' : '🏪 MAYORISTA'} · ${TYPE_LABEL[a.type]} — ${a.name}`.slice(0, 250),
+        title: `${shortTag(a)} · ${TYPE_LABEL[a.type]} — ${a.name}`.slice(0, 250),
         url: linkOf(a),
         description: formatAlert(a, false).split('\n').slice(3).join('\n').slice(0, 3900),
         thumbnail: { url: imageOf(a) },

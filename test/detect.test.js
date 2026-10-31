@@ -106,3 +106,32 @@ test('no repite avisos salvo que baje más o pase el tiempo', () => {
   assert.equal(shouldNotify(state, 'a', 'baja', 1000, t0 + (rules.repeatAfterHours + 1) * 3600e3, rules), true);
   assert.equal(shouldNotify(state, 'b', 'baja', 1000, t0, rules), true);
 });
+
+test('oportunidades sin historial: descuento, sucursal, minorista, reventa y kilo', async () => {
+  const { findOpportunities } = await import('../src/detect.js');
+  const mk = (ean, price, extra = {}) => ({ ean, name: `prod ${ean}a x 1 kg`, category: 'Cat', sector: 'Almacén', price, ...extra });
+  const g = new Map([['1', mk('1', 1000, { listPrice: 3000 })], ['2', mk('2', 1000)], ['3', mk('3', 1000)]]);
+  for (let i = 10; i < 18; i++) g.set(String(i), mk(String(i), 1500 + i));
+  g.set('k', mk('k', 300)); // precio por kg muy bajo
+  const z = new Map([['2', mk('2', 500)], ['3', mk('3', 1000)]]);
+  const m = new Map([['3', { ...mk('3', 500), realEan: '3' }]]);
+  const items = findOpportunities({
+    datasets: [
+      { src: { id: 'may-g', kind: 'mayorista', name: 'G' }, current: g },
+      { src: { id: 'may-z', kind: 'mayorista', name: 'Z' }, current: z },
+      { src: { id: 'min', kind: 'minorista', name: 'web' }, current: m },
+    ],
+    retail: { 2: { price: 2500 } },
+    opp: config.opp,
+    rules,
+  });
+  const f = (sid, ean) => items.find((o) => o.sourceId === sid && o.ean === ean);
+  assert.ok(f('may-g', '1').signals.descuento > 0.6 && f('may-g', '1').strong.includes('descuento'));
+  assert.ok(f('may-z', '2').signals.sucursal >= 0.5 && f('may-z', '2').strong.includes('sucursal'));
+  assert.ok(f('may-z', '2').signals.reventa > 3);
+  assert.ok(f('min', '3').signals.bajoMayorista >= 0.5 && f('min', '3').strong.includes('bajoMayorista'));
+  assert.ok(f('may-g', 'k').signals.kilo >= 0.7, 'precio por kg aparece en la web');
+  assert.ok(!f('may-g', 'k').strong.includes('kilo'), 'pero no manda aviso por defecto');
+  assert.equal(f('may-g', '3'), undefined, 'precio normal no es oportunidad');
+  assert.ok(items[0].score >= items[items.length - 1].score, 'ordenado por puntaje');
+});

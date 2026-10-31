@@ -1,25 +1,35 @@
 // Radar Maxi — dashboard estático. Lee los JSON de ./data/ que genera el monitor.
-// Dos fuentes SEPARADAS: 🏪 mayorista (Carrefour Maxi) y 🛒 minorista (carrefour.com.ar).
+// Fuentes SEPARADAS: 🏪 mayorista (una por sucursal Maxi) y 🛒 minorista (carrefour.com.ar).
 const DATA = './data/';
 const PAGE = 60;
-const TYPE_LABEL = { error: '🚨 Posible error', reventa: '💰 Reventa', baja: '📉 Baja fuerte', minimo: '🏆 Mínimo histórico' };
+const TYPE_LABEL = { error: '🚨 Posible error', oportunidad: '🔥 Oportunidad', reventa: '💰 Reventa', baja: '📉 Baja fuerte', minimo: '🏆 Mínimo histórico' };
+const SIG_LABEL = { descuento: '🏷️ Descuento', sucursal: '🏪 Entre sucursales', reventa: '💰 Reventa', bajoMayorista: '🛒 Más barato que Maxi', kilo: '⚖️ Precio por kg' };
 const MAXI = 'https://comerciante.carrefour.com.ar/';
-const SRC = {
-  mayorista: { short: 'may', tag: 'MAYORISTA', name: 'Carrefour Maxi', files: { products: 'products.json', alerts: 'alerts.json', history: 'history.json' } },
-  minorista: { short: 'min', tag: 'MINORISTA', name: 'carrefour.com.ar', files: { products: 'min-products.json', alerts: 'min-alerts.json', history: 'min-history.json' } },
-};
+const LEGACY = [
+  { id: 'may-legacy', kind: 'mayorista', name: 'Carrefour Maxi', files: { products: 'products.json', alerts: 'alerts.json', history: 'history.json' } },
+  { id: 'min', kind: 'minorista', name: 'carrefour.com.ar', files: { products: 'min-products.json', alerts: 'min-alerts.json', history: 'min-history.json' } },
+];
 
 const blank = () => ({ products: [], byEan: new Map(), alerts: [], history: null, loaded: false, updatedAt: null });
 const S = {
-  source: 'mayorista',
-  data: { mayorista: blank(), minorista: blank() },
+  manifest: [],
+  data: {},
+  kind: 'mayorista',
+  branch: null,
   status: null,
   retail: null,
-  tab: 'alertas',
+  opp: null,
+  tab: 'oportunidades',
   alertType: '',
-  limits: { alertas: PAGE, reventa: PAGE, bajas: PAGE, buscar: PAGE },
+  oppSig: '',
+  limits: { oportunidades: PAGE, alertas: PAGE, reventa: PAGE, bajas: PAGE, buscar: PAGE },
 };
-const D = () => S.data[S.source];
+const srcOf = (id) => S.manifest.find((s) => s.id === id);
+const mayList = () => S.manifest.filter((s) => s.kind === 'mayorista');
+const minSrc = () => S.manifest.find((s) => s.kind === 'minorista');
+const curId = () => (S.kind === 'minorista' ? minSrc()?.id : S.branch);
+const dataOf = (id) => S.data[id] || (S.data[id] = blank());
+const D = () => dataOf(curId());
 
 // ---------- utilidades ----------
 const $ = (s) => document.querySelector(s);
@@ -27,14 +37,19 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const ars = (n) => (n || n === 0 ? '$' + Number(n).toLocaleString('es-AR', { maximumFractionDigits: Number(n) < 100 ? 2 : 0 }) : '—');
 const pct = (x) => `${Math.round(x * 100)}%`;
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const title = (s) => String(s || '').toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
 const NOIMG = 'https://tupedido.carrefour.com.ar/imagenesPDA/noimage-svg.svg';
 const fullImg = (x) => (!x ? null : /^https?:/.test(x) ? x : `https://carrefourar.vteximg.com.br/arquivos/ids/${x}`);
 const fullUrl = (x) => (!x ? null : /^https?:/.test(x) ? x : `https://www.carrefour.com.ar/${x}/p`);
-const imgOf = (p, src = S.source) => fullImg(p.im || p.image) || (src === 'mayorista' && /^\d+$/.test(p.ean) ? `https://tupedido.carrefour.com.ar/imagenesPDA/${p.ean}.jpg` : NOIMG);
-const linkOf = (p, src = S.source) => (src === 'minorista' ? fullUrl(p.u || p.url) || 'https://www.carrefour.com.ar/' : `${MAXI}p/${p.ean}`);
-// Producto que no apareció en la última lectura (sin stock o dado de baja)
+const kindOf = (id) => srcOf(id)?.kind || (id === 'min' ? 'minorista' : 'mayorista');
+const imgOf = (p, id = curId()) => fullImg(p.im || p.image) || (kindOf(id) === 'mayorista' && /^\d+$/.test(p.ean) ? `https://tupedido.carrefour.com.ar/imagenesPDA/${p.ean}.jpg` : NOIMG);
+const linkOf = (p, id = curId()) => (kindOf(id) === 'minorista' ? fullUrl(p.u || p.url) || 'https://www.carrefour.com.ar/' : `${MAXI}p/${p.ean}`);
 const unseen = (p) => p.l && D().updatedAt && Date.parse(p.l) < Date.parse(D().updatedAt) - 3600e3;
-const srcBadge = (src = S.source) => `<span class="src ${SRC[src].short}">${SRC[src].tag}</span>`;
+function srcBadge(id = curId()) {
+  const s = srcOf(id);
+  if (kindOf(id) === 'minorista') return '<span class="src min">MINORISTA</span>';
+  return `<span class="src may">MAYORISTA${s && mayList().length > 1 ? ` · ${esc(title(s.name))}` : ''}</span>`;
+}
 const store = {
   get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* sin storage */ } },
@@ -49,6 +64,7 @@ function ago(ts) {
   return `hace ${Math.round(h / 24)} días`;
 }
 const fmtDate = (d) => new Date(d).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+const fmtDateFull = (d) => new Date(d).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 async function getJson(name) {
   const r = await fetch(`${DATA}${name}?t=${Math.floor(Date.now() / 60000)}`, { cache: 'no-store' });
@@ -56,20 +72,54 @@ async function getJson(name) {
   return r.json();
 }
 
+// ---------- CSV (se abre en Excel: separador ";" y coma decimal) ----------
+const csvNum = (n) => (n === null || n === undefined || n === '' ? '' : String(Math.round(Number(n) * 100) / 100).replace('.', ','));
+const csvCell = (v) => {
+  const s = String(v ?? '');
+  return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+function downloadCsv(filename, header, rows) {
+  const text = '﻿' + [header, ...rows].map((r) => r.map(csvCell).join(';')).join('\r\n');
+  const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+}
+const today = () => new Date().toISOString().slice(0, 10);
+const srcFileTag = (id) => (kindOf(id) === 'minorista' ? 'minorista' : `mayorista-${(srcOf(id)?.name || 'maxi').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
+function historyRows(series, nowPrice) {
+  const rows = [];
+  for (let i = 0; i < series.length; i++) {
+    const [t, price, base] = series[i];
+    const next = series[i + 1];
+    rows.push([fmtDateFull(t * 60000), next ? fmtDateFull(next[0] * 60000) : 'hoy', csvNum(price), csvNum(base ?? '')]);
+  }
+  if (!series.length && nowPrice) rows.push([fmtDateFull(Date.now()), 'hoy', csvNum(nowPrice), '']);
+  return rows;
+}
+
 // Unidad (kg/l/u) desde la descripción — misma lógica que el monitor
-function parseQty(desc) {
+function parseQty(desc, multipack = true) {
   const d = ` ${String(desc || '').toLowerCase().replace(/,/g, '.')} `;
   const U = '(kgs?|kilos?|k|grs?|grm|gramos?|g|ml|cc|cm3|lts?|litros?|l)';
   const n2 = (n, u) => (/^(kgs?|kilos?|k)$/.test(u) ? { q: n, u: 'kg' } : /^(grs?|grm|gramos?|g)$/.test(u) ? { q: n / 1000, u: 'kg' } : /^(ml|cc|cm3)$/.test(u) ? { q: n / 1000, u: 'l' } : { q: n, u: 'l' });
   let m = d.match(new RegExp(`(?<![\\w.])(\\d+)\\s*(?:u\\.?|un\\.?|unid\\.?|unidades)?\\s*x\\s*(\\d+(?:\\.\\d+)?)\\s*${U}\\b`));
+  if (m && !multipack) return n2(+m[2], m[3]); // en Maxi el precio es por unidad aunque diga "12 x 90 grs"
   if (m && +m[1] > 1 && +m[1] <= 200) { const b = n2(+m[2], m[3]); return { q: b.q * +m[1], u: b.u }; }
   const all = [...d.matchAll(new RegExp(`(\\d+(?:\\.\\d+)?)\\s*${U}(?![a-z])`, 'g'))];
   if (all.length) { const l = all[all.length - 1]; const r = n2(+l[1], l[2]); if (r.q > 0) return r; }
   m = d.match(/(?:x\s*)?(?<![\w.])(\d+)\s*(?:u|un|uni|unid|unidades|rollos|saquitos|sobres)\b/);
   return m && +m[1] > 0 ? { q: +m[1], u: 'u' } : null;
 }
-const NON_UNIT = /electro|tecnolog|hogar|indumentaria|jugueter|librer|automotor|aire libre/i;
-const unitOf = (p) => (NON_UNIT.test(p.s || '') ? null : parseQty(p.n));
+const NON_UNIT = /electro|tecnolog|hogar|indumentaria|jugueter|librer|automotor|aire libre|beb[eé]|bazar|textil/i;
+function unitOf(p, id = curId()) {
+  if (NON_UNIT.test(p.s || '')) return null;
+  const q = parseQty(p.n, kindOf(id) !== 'mayorista');
+  return q && q.u !== 'u' && q.q > 0 ? q : null;
+}
 
 // ---------- historial ----------
 function priceAt(series, t) {
@@ -95,16 +145,53 @@ function refPrice(series) {
   return median(out);
 }
 
+// ---------- carga ----------
+async function loadSource(id) {
+  const s = srcOf(id);
+  const d = dataOf(id);
+  if (!s) return d;
+  const [products, alerts] = await Promise.allSettled([getJson(s.files.products), getJson(s.files.alerts)]);
+  d.products = products.value?.items || [];
+  d.byEan = new Map(d.products.map((p) => [p.ean, p]));
+  d.updatedAt = products.value?.updatedAt || null;
+  d.alerts = (alerts.value?.alerts || []).map((a) => ({ ...a, source: a.source || s.kind, sourceId: a.sourceId || id }));
+  d.loaded = true;
+  return d;
+}
+async function ensureHistory(id = curId()) {
+  const d = dataOf(id);
+  if (!d.history) { try { d.history = await getJson(srcOf(id).files.history); } catch { d.history = {}; } }
+  return d.history;
+}
+async function ensureRetail() {
+  if (!S.retail) { try { S.retail = await getJson('retail.json'); } catch { S.retail = {}; } }
+  return S.retail;
+}
+async function ensureAllProducts() {
+  await Promise.all(S.manifest.filter((s) => !dataOf(s.id).loaded).map((s) => loadSource(s.id)));
+}
+
+async function loadAll() {
+  try { S.status = await getJson('status.json'); } catch { S.status = null; }
+  try { S.manifest = (await getJson('sources.json')).sources || []; } catch { S.manifest = []; }
+  if (!S.manifest.length) S.manifest = LEGACY;
+  try { S.opp = await getJson('oportunidades.json'); } catch { S.opp = { items: [] }; }
+  S.data = {};
+  await Promise.all(S.manifest.map((s) => loadSource(s.id)));
+  if (!S.branch || !srcOf(S.branch)) S.branch = store.get('branch', '') && srcOf(store.get('branch', '')) ? store.get('branch', '') : mayList()[0]?.id || null;
+  updateBadges();
+  renderBranches();
+}
+
 // ---------- tarjetas ----------
-function productCard(p, { right = '', extra = '' } = {}) {
-  const src = S.source;
+function productCard(p, { right = '', extra = '', id = curId() } = {}) {
   const promo = p.pr ? `<span class="pill promo">${esc(p.pr)}</span>` : p.pp || p.o ? '<span class="pill promo">Oferta</span>' : '';
   const minq = p.q ? `<span class="meta">mín. ${p.q} u.${p.pk ? ` · bulto ${p.pk}` : ''}</span>` : '';
   const was = p.pp && p.p > p.pp ? p.p : p.lp && p.lp > (p.e ?? p.p) ? p.lp : null;
-  return `<button class="card ${SRC[src].short}" data-ean="${esc(p.ean)}">
-    <img loading="lazy" src="${esc(imgOf(p))}" onerror="this.onerror=null;this.src='${NOIMG}'" alt="">
+  return `<button class="card ${kindOf(id) === 'minorista' ? 'min' : 'may'}" data-ean="${esc(p.ean)}" data-src="${esc(id)}">
+    <img loading="lazy" src="${esc(imgOf(p, id))}" onerror="this.onerror=null;this.src='${NOIMG}'" alt="">
     <div>
-      <div class="meta">${srcBadge(src)}${esc(p.c || p.sc || '')}</div>
+      <div class="meta">${srcBadge(id)}${esc(p.c || p.sc || '')}</div>
       <div class="name">${esc(p.n)}</div>
       <div><span class="price">${ars(p.e ?? p.p)}</span>${was ? `<span class="was">${ars(was)}</span>` : ''} ${right}</div>
       <div style="margin-top:4px">${unseen(p) ? `<span class="pill">no visto desde ${ago(p.l)}</span>` : ''}${promo}${minq}${p.sl ? `<span class="meta">Vende: ${esc(p.sl)}</span>` : ''}${extra}</div>
@@ -113,19 +200,33 @@ function productCard(p, { right = '', extra = '' } = {}) {
 }
 
 function alertCard(a) {
-  const src = a.source || S.source;
+  const id = a.sourceId || curId();
   const types = (a.types || [a.type]).map((t) => `<span class="pill ${t}">${TYPE_LABEL[t] || t}</span>`).join('');
-  const was = a.prev && a.prev > a.price ? `<span class="was">${ars(a.prev)}</span> <span class="neg">-${pct(a.dropPct || 1 - a.price / a.prev)}</span>` : '';
+  const was = a.prev && a.prev > a.price ? `<span class="was">${ars(a.prev)}</span> <span class="neg">-${pct(a.dropPct || 1 - a.price / a.prev)}</span>` : a.listPrice && a.listPrice > a.price ? `<span class="was">${ars(a.listPrice)}</span>` : '';
   const retail = a.retail ? `<div class="meta">Minorista ${ars(a.retail)}${a.margin != null ? ` · margen <span class="pos">${pct(a.margin)}</span>` : ''}</div>` : '';
-  return `<button class="card ${SRC[src].short}" data-ean="${esc(a.ean)}">
-    <img loading="lazy" src="${esc(imgOf(a, src))}" onerror="this.onerror=null;this.src='${NOIMG}'" alt="">
+  return `<button class="card ${kindOf(id) === 'minorista' ? 'min' : 'may'}" data-ean="${esc(a.ean)}" data-src="${esc(id)}">
+    <img loading="lazy" src="${esc(imgOf(a, id))}" onerror="this.onerror=null;this.src='${NOIMG}'" alt="">
     <div>
-      <div>${srcBadge(src)}${types}${a.suppressed ? '<span class="pill">no notificada</span>' : ''}</div>
+      <div>${srcBadge(id)}${types}${a.suppressed ? '<span class="pill">no notificada</span>' : ''}</div>
       <div class="name">${esc(a.name)}</div>
       <div><span class="price">${ars(a.price)}</span>${was}</div>
       ${retail}${a.promo ? `<span class="pill promo">${esc(a.promo)}</span>` : ''}${a.seller ? `<div class="meta">Vende: ${esc(a.seller)}</div>` : ''}
       <ul class="reasons">${(a.reasons || []).map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
       <div class="meta" style="margin-top:4px">${esc(a.category || '')} · ${ago(a.ts)}${a.notified ? ' · 🔔 avisada' : ''}</div>
+    </div>
+  </button>`;
+}
+
+function oppCard(o) {
+  const sigs = Object.entries(o.signals || {}).map(([k, v]) => `<span class="sig ${k}">${SIG_LABEL[k] || k} ${k === 'reventa' ? '+' : '-'}${pct(v)}</span>`).join('');
+  return `<button class="card ${o.kind === 'minorista' ? 'min' : 'may'}" data-ean="${esc(o.ean)}" data-src="${esc(o.sourceId)}">
+    <img loading="lazy" src="${esc(imgOf(o, o.sourceId))}" onerror="this.onerror=null;this.src='${NOIMG}'" alt="">
+    <div>
+      <div class="meta">${srcBadge(o.sourceId)}${esc(o.category || '')}</div>
+      <div class="name">${esc(o.name)}</div>
+      <div><span class="price">${ars(o.price)}</span>${o.listPrice && o.listPrice > o.price ? `<span class="was">${ars(o.listPrice)}</span>` : ''}</div>
+      <div style="margin-top:4px">${sigs}${o.promo ? `<span class="pill promo">${esc(o.promo)}</span>` : ''}${o.minQty ? `<span class="meta">mín. ${o.minQty} u.</span>` : ''}</div>
+      <ul class="reasons">${(o.reasons || []).map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
     </div>
   </button>`;
 }
@@ -139,6 +240,25 @@ function listHtml(items, render, key) {
 }
 
 // ---------- vistas ----------
+function oppItems() {
+  const q = norm($('#oppSearch').value);
+  const scope = $('#oppScope').value;
+  return (S.opp?.items || []).filter((o) => {
+    if (o.kind !== S.kind) return false;
+    if (S.kind === 'mayorista' && scope === 'branch' && o.sourceId !== S.branch) return false;
+    if (S.oppSig && !(S.oppSig in (o.signals || {}))) return false;
+    if (q && !norm(`${o.name} ${o.ean} ${o.category}`).includes(q)) return false;
+    return true;
+  });
+}
+function renderOpp() {
+  const items = oppItems();
+  $('#oppCount').textContent = `${items.length.toLocaleString('es-AR')} oportunidades${S.opp?.updatedAt ? ` · ${ago(S.opp.updatedAt)}` : ''}`;
+  $('#oppList').innerHTML = items.length
+    ? listHtml(items, oppCard, 'oportunidades')
+    : '<div class="empty">No hay oportunidades con estos filtros. Se recalculan en cada lectura (cada 30 min).</div>';
+}
+
 function renderAlerts() {
   const q = norm($('#alertSearch').value);
   const hours = Number($('#alertRange').value);
@@ -153,26 +273,35 @@ function renderAlerts() {
 }
 
 function updateBadges() {
-  const day = (src) => S.data[src].alerts.filter((a) => Date.parse(a.ts) > Date.now() - 864e5).length;
+  const day = (kind) => S.manifest.filter((s) => s.kind === kind).reduce((n, s) => n + dataOf(s.id).alerts.filter((a) => Date.parse(a.ts) > Date.now() - 864e5).length, 0);
   $('#badgeMay').textContent = day('mayorista') || '';
   $('#badgeMin').textContent = day('minorista') || '';
 }
 
+function renderBranches() {
+  const list = mayList();
+  const box = $('#branches');
+  if (list.length < 2) { box.innerHTML = ''; return; }
+  box.innerHTML = list.map((s) => {
+    const st = S.status?.sources?.[s.id];
+    const bad = st && st.ok === false;
+    return `<button role="radio" data-branch="${esc(s.id)}" class="${s.id === S.branch ? 'active' : ''}" aria-checked="${s.id === S.branch}">${esc(title(s.name))}${bad ? ' <span class="stale">⚠️</span>' : ''}</button>`;
+  }).join('');
+}
+
 async function renderResale() {
-  if (S.source !== 'mayorista') return setTab('alertas');
-  if (!S.retail) {
-    $('#resaleList').innerHTML = '<div class="empty">Cargando precios minoristas…</div>';
-    try { S.retail = await getJson('retail.json'); } catch { S.retail = {}; }
-  }
+  if (S.kind !== 'mayorista') return setTab('oportunidades');
+  if (!S.retail) $('#resaleList').innerHTML = '<div class="empty">Cargando precios minoristas…</div>';
+  const retail = await ensureRetail();
   const min = Number($('#marginMin').value) / 100;
   $('#marginVal').textContent = pct(min);
   const q = norm($('#resaleSearch').value);
   const sector = $('#resaleSector').value;
   const items = [];
   for (const p of D().products) {
-    const r = S.retail[p.ean];
+    const r = retail[p.ean];
     const price = p.e ?? p.p;
-    if (!r?.price || !price || r.available === false) continue;
+    if (!r?.price || !price || r.available === false || unseen(p)) continue;
     const margin = r.price / price - 1;
     if (margin < min) continue;
     if (sector && p.s !== sector) continue;
@@ -186,17 +315,11 @@ async function renderResale() {
   }), 'reventa');
 }
 
-async function ensureHistory(src = S.source) {
-  const d = S.data[src];
-  if (!d.history) { try { d.history = await getJson(SRC[src].files.history); } catch { d.history = {}; } }
-  return d.history;
-}
-
 async function renderDrops() {
-  if (!D().history) $('#dropList').innerHTML = '<div class="empty">Cargando historial…</div>';
-  const src = S.source;
-  const history = await ensureHistory(src);
-  if (src !== S.source) return;
+  const id = curId();
+  if (!dataOf(id).history) $('#dropList').innerHTML = '<div class="empty">Cargando historial…</div>';
+  const history = await ensureHistory(id);
+  if (id !== curId()) return;
   const w = $('#dropWindow').value;
   const sector = $('#dropSector').value;
   const t = Date.now() / 60000 - (w === 'ref' ? 0 : Number(w) * 1440);
@@ -213,18 +336,18 @@ async function renderDrops() {
     items.push({ p, old, drop });
   }
   items.sort((a, b) => b.drop - a.drop);
-  $('#dropList').innerHTML = items.length || Object.keys(history).length
+  $('#dropList').innerHTML = items.length
     ? listHtml(items, ({ p, old, drop }) => productCard(p, { right: `<span class="neg">-${pct(drop)}</span>`, extra: `<div class="meta">Antes ${ars(old)}</div>` }), 'bajas')
-    : '<div class="empty">Todavía no hay historial suficiente.</div>';
+    : '<div class="empty">Todavía no hay bajas registradas. El historial se arma con cada lectura; mientras tanto mirá 🔥 Oportunidades.</div>';
 }
 
-function renderSearch() {
+function searchItems() {
   const q = norm($('#q').value);
   const sector = $('#searchSector').value;
   const sort = $('#searchSort').value;
   let items = D().products.filter((p) => (!sector || p.s === sector) && (!q || norm(`${p.n} ${p.ean} ${p.c} ${p.b || ''}`).includes(q)));
   const price = (p) => p.e ?? p.p ?? Infinity;
-  const onSale = (p) => (p.pp || p.o || (p.lp && p.lp > price(p)) ? 1 : 0);
+  const onSale = (p) => (p.pr || p.pp || p.o || (p.lp && p.lp > price(p)) ? 1 : 0);
   if (sort === 'priceAsc') items.sort((a, b) => price(a) - price(b));
   else if (sort === 'priceDesc') items.sort((a, b) => price(b) - price(a));
   else if (sort === 'promo') items.sort((a, b) => onSale(b) - onSale(a));
@@ -232,24 +355,28 @@ function renderSearch() {
     const u = (p) => { const x = unitOf(p); return x ? price(p) / x.q : Infinity; };
     items = items.map((p) => ({ p, u: u(p) })).sort((a, b) => a.u - b.u).map((x) => x.p);
   }
-  $('#searchCount').textContent = `${items.length.toLocaleString('es-AR')} productos ${SRC[S.source].tag.toLowerCase()}s`;
+  return items;
+}
+function renderSearch() {
+  const items = searchItems();
+  $('#searchCount').textContent = `${items.length.toLocaleString('es-AR')} productos ${S.kind === 'minorista' ? 'minoristas' : `mayoristas · ${title(srcOf(S.branch)?.name || '')}`}`;
   $('#searchList').innerHTML = listHtml(items, (p) => {
     const x = unitOf(p);
     return productCard(p, { extra: x ? `<div class="meta">${ars((p.e ?? p.p) / x.q)} por ${x.u}</div>` : '' });
   }, 'buscar');
 }
 
-function sourceBox(key) {
-  const s = S.status?.sources?.[key];
-  const title = key === 'mayorista' ? '🏪 Mayorista · Carrefour Maxi' : '🛒 Minorista · carrefour.com.ar';
-  if (!s) return `<div class="box"><h3>${title}</h3><div class="meta">Sin datos todavía.</div></div>`;
-  return `<div class="box"><h3>${title}</h3><dl class="kv">
-    <dt>Estado</dt><dd>${s.ok ? '✅ Funcionando' : '❌ Con errores'}</dd>
-    <dt>Última lectura OK</dt><dd>${s.lastSuccess ? `${fmtDate(s.lastSuccess)} (${ago(s.lastSuccess)})` : '—'}</dd>
-    <dt>Productos</dt><dd>${(s.products || 0).toLocaleString('es-AR')}</dd>
-    ${key === 'mayorista' ? `<dt>Sucursal</dt><dd>${esc(s.region || '')} · ${esc(s.seller || '')}</dd><dt>Sesión</dt><dd>${esc(s.sessionSource || '—')}</dd>` : ''}
-    ${s.lastError ? `<dt>Último error</dt><dd class="neg">${esc(s.lastError)}</dd>` : ''}
-    ${(s.warnings || []).length ? `<dt>Avisos</dt><dd>${s.warnings.map(esc).join('<br>')}</dd>` : ''}
+function sourceBox(s) {
+  const st = S.status?.sources?.[s.id];
+  const head = s.kind === 'minorista' ? '🛒 Minorista · carrefour.com.ar' : `🏪 Mayorista · Maxi ${esc(title(s.name))}`;
+  if (!st) return `<div class="box"><h3>${head}</h3><div class="meta">Sin datos todavía.</div></div>`;
+  return `<div class="box"><h3>${head}</h3><dl class="kv">
+    <dt>Estado</dt><dd>${st.ok ? '✅ Funcionando' : '❌ Con errores'}</dd>
+    <dt>Última lectura OK</dt><dd>${st.lastSuccess ? `${fmtDate(st.lastSuccess)} (${ago(st.lastSuccess)})` : '—'}</dd>
+    <dt>Productos</dt><dd>${(st.products || 0).toLocaleString('es-AR')}</dd>
+    ${st.cookieVar ? `<dt>Cookie</dt><dd>${esc(st.cookieVar)}</dd>` : ''}
+    ${st.lastError ? `<dt>Último error</dt><dd class="neg">${esc(st.lastError)}</dd>` : ''}
+    ${(st.warnings || []).length ? `<dt>Avisos</dt><dd>${st.warnings.map(esc).join('<br>')}</dd>` : ''}
   </dl></div>`;
 }
 
@@ -258,22 +385,30 @@ function renderStatus() {
   if (!s) { $('#statusBox').innerHTML = '<div class="empty">Sin datos todavía. El monitor no corrió nunca o falta configurarlo.</div>'; return; }
   const ch = s.channels || {};
   const chans = Object.entries(ch).filter(([, v]) => v).map(([k]) => k).join(', ') || 'ninguno (sólo web)';
-  const cell = (r) => (!r ? '—' : r.ok ? `✅ ${r.products ?? ''}${r.alerts ? ` · ${r.alerts} al.` : ''}` : `❌ <span class="meta">${esc((r.error || '').slice(0, 60))}</span>`);
-  const runs = (s.runs || []).slice(0, 48).map((r) => `<tr><td>${fmtDate(r.at)}</td><td>${cell(r.mayorista)}</td><td>${cell(r.minorista)}</td><td>${r.ms ? (r.ms / 1000).toFixed(0) + ' s' : ''}</td></tr>`).join('');
+  const cookies = (s.cookies || []).map((c) => `<tr><td>${esc(c.var)}</td><td>${c.ok ? '✅' : '❌'}</td><td>${esc(c.branch ? title(c.branch) : '—')}</td><td class="meta">${esc(c.ok ? '' : (c.error || '').slice(0, 120))}</td></tr>`).join('');
+  const names = Object.fromEntries(S.manifest.map((m) => [m.id, m.kind === 'minorista' ? '🛒' : title(m.name)]));
+  const runs = (s.runs || []).slice(0, 48).map((r) => {
+    const cells = Object.entries(r.results || {}).map(([id, x]) => `${names[id] || id}: ${x.ok ? `✅${x.alerts ? ` ${x.alerts}` : ''}` : '❌'}`).join(' · ');
+    return `<tr><td>${fmtDate(r.at)}</td><td>${cells}</td><td>${r.opp ? r.opp.total : ''}</td><td>${r.ms ? (r.ms / 1000).toFixed(0) + ' s' : ''}</td></tr>`;
+  }).join('');
   $('#statusBox').innerHTML = `
-    <div class="status-grid">${sourceBox('mayorista')}${sourceBox('minorista')}</div>
+    <div class="status-grid">${S.manifest.map(sourceBox).join('')}</div>
+    <div class="box"><h3>Cookies de sesión (una por sucursal)</h3><div class="table-wrap"><table>
+      <thead><tr><th>Secret</th><th></th><th>Sucursal</th><th></th></tr></thead><tbody>${cookies || '<tr><td colspan="4">—</td></tr>'}</tbody></table></div></div>
     <div class="box"><dl class="kv">
       <dt>Frecuencia</dt><dd>cada ${s.intervalMinutes || 30} min</dd>
       <dt>Último intento</dt><dd>${s.lastRun ? `${fmtDate(s.lastRun)} (${ago(s.lastRun)})` : '—'}</dd>
       <dt>Avisos push</dt><dd>${esc(chans)}</dd>
+      <dt>Oportunidades</dt><dd>${s.opportunities ? `${s.opportunities.total} (${s.opportunities.strong} fuertes)` : '—'}</dd>
     </dl></div>
     <div class="box"><h3>Últimas corridas</h3><div class="table-wrap"><table>
-      <thead><tr><th>Fecha</th><th>🏪 Mayorista</th><th>🛒 Minorista</th><th>Dur.</th></tr></thead>
+      <thead><tr><th>Fecha</th><th>Resultado</th><th>Oport.</th><th>Dur.</th></tr></thead>
       <tbody>${runs}</tbody></table></div></div>`;
 }
 
 function updateStatusPill() {
-  const s = S.status?.sources?.[S.source];
+  const id = curId();
+  const s = S.status?.sources?.[id];
   const pill = $('#statusPill');
   pill.classList.remove('ok', 'warn', 'bad');
   const banner = $('#banner');
@@ -282,20 +417,21 @@ function updateStatusPill() {
     pill.classList.add('bad');
     $('#statusText').textContent = 'Sin datos';
     if (s?.lastError) msgs.push(`⚠️ ${s.lastError}`);
-    else if (S.source === 'mayorista') msgs.push('⚠️ Mayorista sin datos: falta cargar la sesión (CF_COOKIE). Mientras tanto podés usar 🛒 Minorista.');
   } else {
     const mins = (Date.now() - Date.parse(s.lastSuccess)) / 60000;
     const interval = S.status.intervalMinutes || 30;
     pill.classList.add(!s.ok || mins > interval * 6 ? 'bad' : mins > interval * 2.5 ? 'warn' : 'ok');
     $('#statusText').textContent = ago(s.lastSuccess);
-    if (!s.ok && s.lastError) msgs.push(`⚠️ La última lectura falló: ${s.lastError}`);
+    if (!s.ok && s.lastError) msgs.push(`⚠️ La última lectura falló (se muestran datos de ${ago(s.lastSuccess)}): ${s.lastError}`);
     else if (mins > interval * 2.5) msgs.push(`⚠️ Los precios no se actualizan desde ${ago(s.lastSuccess)}.`);
-    for (const w of s.warnings || []) if (/primera corrida/i.test(w)) msgs.push(`ℹ️ ${w}`);
+    for (const w of s.warnings || []) if (/primera lectura|primera corrida/i.test(w)) msgs.push(`ℹ️ ${w}`);
   }
+  if (S.kind === 'mayorista' && !mayList().length) msgs.push('⚠️ Mayorista sin datos: falta cargar la cookie (secret CF_COOKIE). Mientras tanto podés usar 🛒 Minorista.');
+  for (const c of S.status?.cookies || []) if (!c.ok && S.kind === 'mayorista') msgs.push(`⚠️ ${c.var}${c.branch ? ` (${title(c.branch)})` : ''}: ${c.error}`);
   banner.hidden = !msgs.length;
-  banner.innerHTML = msgs.map(esc).join('<br>');
+  banner.innerHTML = [...new Set(msgs)].map(esc).join('<br>');
   const n = s?.products ? ` · ${s.products.toLocaleString('es-AR')} productos` : '';
-  $('#branch').textContent = S.source === 'mayorista' ? `Mayorista · Carrefour Maxi${s?.region ? ` · ${s.region}` : ''}${n}` : `Minorista · carrefour.com.ar${n}`;
+  $('#branch').textContent = S.kind === 'mayorista' ? `Mayorista · Maxi ${title(srcOf(S.branch)?.name || '')}${n}` : `Minorista · carrefour.com.ar${n}`;
 }
 
 // ---------- detalle ----------
@@ -323,14 +459,18 @@ function chartSvg(series, retail) {
     <text x="${L}" y="${H - 6}">${dl(x0)}</text><text x="${W - R}" y="${H - 6}" text-anchor="end">hoy</text></svg>`;
 }
 
-async function openDetail(ean, src = S.source) {
-  const d = S.data[src];
+let detailCtx = null;
+async function openDetail(ean, id = curId()) {
+  if (!srcOf(id)) return;
+  const d = dataOf(id);
+  if (!d.loaded) await loadSource(id);
   const p = d.byEan.get(ean);
-  const a0 = d.alerts.find((a) => a.ean === ean);
+  const a0 = d.alerts.find((a) => a.ean === ean) || (S.opp?.items || []).find((o) => o.ean === ean && o.sourceId === id);
   if (!p && !a0) return;
   const dlg = $('#detail');
-  const base = p || { ean, n: a0.name, c: a0.category, s: a0.sector, e: a0.price, p: a0.basePrice, lp: a0.listPrice, u: a0.url, im: a0.image, sl: a0.seller };
-  const isMay = src === 'mayorista';
+  const base = p || { ean, n: a0.name, c: a0.category, s: a0.sector, e: a0.price, p: a0.basePrice || a0.price, lp: a0.listPrice, u: a0.url, im: a0.image, sl: a0.seller };
+  const isMay = kindOf(id) === 'mayorista';
+  detailCtx = { ean, id, base };
   const render = () => {
     const series = d.history?.[ean] || [];
     const r = isMay ? S.retail?.[ean] : null;
@@ -339,13 +479,19 @@ async function openDetail(ean, src = S.source) {
     const ref = series.length ? refPrice(series) : null;
     const q = unitOf(base);
     const alerts = d.alerts.filter((a) => a.ean === ean).slice(0, 10);
-    // Mismo producto en la otra fuente (sólo como referencia, sin mezclar)
-    const other = S.data[isMay ? 'minorista' : 'mayorista'].byEan.get(ean);
+    const opp = (S.opp?.items || []).find((o) => o.ean === ean && o.sourceId === id);
+    // Mismo producto en las otras fuentes (sólo referencia, sin mezclar datos)
+    const rows = S.manifest.map((s) => {
+      const x = dataOf(s.id).byEan.get(s.kind === 'minorista' && !isMay ? ean : ean);
+      const xp = x ? x.e ?? x.p : null;
+      return { s, xp, me: s.id === id };
+    }).filter((r2) => r2.xp);
+    const compare = rows.length > 1 ? `<table class="compare"><tbody>${rows.map(({ s, xp, me }) => `<tr class="${me ? 'me' : ''}"><td>${s.kind === 'minorista' ? '🛒 carrefour.com.ar' : `🏪 Maxi ${esc(title(s.name))}`}</td><td>${ars(xp)}</td><td>${me ? '' : `<span class="${xp > price ? 'pos' : 'neg'}">${xp > price ? '+' : ''}${pct(xp / price - 1)}</span>`}</td></tr>`).join('')}</tbody></table>` : '';
     $('#detailBody').innerHTML = `
       <div class="detail-head">
-        <img src="${esc(imgOf(base, src))}" onerror="this.onerror=null;this.src='${NOIMG}'" alt="">
+        <img src="${esc(imgOf(base, id))}" onerror="this.onerror=null;this.src='${NOIMG}'" alt="">
         <div>
-          <div class="meta">${srcBadge(src)}${esc([base.s, base.c].filter(Boolean).join(' › '))}</div>
+          <div class="meta">${srcBadge(id)}${esc([base.s, base.c].filter(Boolean).join(' › '))}</div>
           <h2>${esc(base.n)}</h2>
           <div><span class="price">${ars(price)}</span>${base.pp && base.p > base.pp ? `<span class="was">${ars(base.p)}</span>` : base.lp && base.lp > price ? `<span class="was">${ars(base.lp)}</span>` : ''}</div>
           ${base.q ? `<div class="meta">Compra mínima ${base.q} u.${base.pk ? ` · bulto de ${base.pk}` : ''}</div>` : ''}
@@ -353,43 +499,88 @@ async function openDetail(ean, src = S.source) {
           ${base.sl ? `<div class="meta">Vendido por ${esc(base.sl)}</div>` : ''}
         </div>
       </div>
+      ${opp ? `<div style="margin-top:10px">${Object.entries(opp.signals).map(([k, v]) => `<span class="sig ${k}">${SIG_LABEL[k] || k} ${k === 'reventa' ? '+' : '-'}${pct(v)}</span>`).join('')}<ul class="reasons">${opp.reasons.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
       <div class="stats">
         <div class="stat"><div class="k">Precio habitual (30 d)</div><div class="v">${ars(ref)}</div></div>
         <div class="stat"><div class="k">Mínimo registrado</div><div class="v">${ars(vals.length ? Math.min(...vals) : null)}</div></div>
         <div class="stat"><div class="k">Máximo registrado</div><div class="v">${ars(vals.length ? Math.max(...vals) : null)}</div></div>
-        ${isMay ? `<div class="stat"><div class="k">Minorista</div><div class="v">${r?.price ? ars(r.price) : r?.found === false ? 'no está' : '—'}</div></div>` : ''}
         ${isMay && r?.price && price ? `<div class="stat"><div class="k">Margen reventa</div><div class="v ${r.price > price ? 'pos' : 'neg'}">${pct(r.price / price - 1)}</div></div>` : ''}
-        ${!isMay && base.lp && base.lp > price ? `<div class="stat"><div class="k">Descuento vs lista</div><div class="v pos">${pct(1 - price / base.lp)}</div></div>` : ''}
+        ${base.lp && base.lp > price ? `<div class="stat"><div class="k">Descuento vs ${isMay ? 'anterior' : 'lista'}</div><div class="v pos">${pct(1 - price / base.lp)}</div></div>` : ''}
         ${q && price ? `<div class="stat"><div class="k">Precio por ${q.u}</div><div class="v">${ars(price / q.q)}</div></div>` : ''}
-        ${other ? `<div class="stat"><div class="k">En ${isMay ? '🛒 minorista' : '🏪 mayorista'}</div><div class="v">${ars(other.e ?? other.p)}</div></div>` : ''}
       </div>
+      ${compare ? `<h3 style="font-size:14px;margin:6px 0 0">Comparación</h3>${compare}` : ''}
+      <h3 style="font-size:14px;margin:14px 0 4px">Historial de precio</h3>
       ${chartSvg(series, r?.price)}
       ${alerts.length ? `<h3 style="font-size:14px;margin:14px 0 6px">Alertas</h3><ul class="reasons">${alerts.map((a) => `<li><b>${TYPE_LABEL[a.type] || a.type}</b> · ${fmtDate(a.ts)} · ${ars(a.price)} — ${esc((a.reasons || [])[0] || '')}</li>`).join('')}</ul>` : ''}
       <div class="links">
-        <a class="btn" href="${esc(linkOf(base, src))}" target="_blank" rel="noopener">${isMay ? 'Ver en Carrefour Maxi' : 'Ver en carrefour.com.ar'}</a>
+        <a class="btn" href="${esc(linkOf(base, id))}" target="_blank" rel="noopener">${isMay ? 'Ver en Carrefour Maxi' : 'Ver en carrefour.com.ar'}</a>
         ${r?.url ? `<a class="btn ghost" href="${esc(r.url)}" target="_blank" rel="noopener">Ver minorista</a>` : ''}
+        <button class="btn ghost" type="button" id="dlProduct">⬇️ Historial (CSV)</button>
         ${/^\d+$/.test(ean) ? `<span class="meta" style="align-self:center">EAN ${ean}</span>` : ''}
       </div>`;
   };
   render();
   if (!dlg.open) dlg.showModal();
-  const hash = `#${SRC[src].short}=${ean}`;
+  const hash = `#src=${encodeURIComponent(id)}&p=${encodeURIComponent(ean)}`;
   if (location.hash !== hash) history.replaceState(null, '', hash);
-  const loads = [ensureHistory(src)];
-  if (isMay && !S.retail) loads.push(getJson('retail.json').then((x) => (S.retail = x)).catch(() => (S.retail = {})));
-  if (!S.data[isMay ? 'minorista' : 'mayorista'].loaded) loads.push(loadSource(isMay ? 'minorista' : 'mayorista'));
-  await Promise.all(loads);
-  if (dlg.open) render();
+  await Promise.all([ensureHistory(id), isMay ? ensureRetail() : null, ensureAllProducts()]);
+  if (dlg.open && detailCtx?.ean === ean) render();
+}
+
+function downloadProductCsv() {
+  if (!detailCtx) return;
+  const { ean, id, base } = detailCtx;
+  const series = dataOf(id).history?.[ean] || [];
+  const s = srcOf(id);
+  const rows = historyRows(series, base.e ?? base.p).map((r) => [ean, base.n, s.kind, s.name, ...r]);
+  downloadCsv(`historial-${srcFileTag(id)}-${ean}-${today()}.csv`, ['EAN', 'Producto', 'Fuente', 'Sucursal', 'Desde', 'Hasta', 'Precio', 'Precio sin promo'], rows);
+}
+
+async function downloadListCsv() {
+  const id = curId();
+  const isMay = kindOf(id) === 'mayorista';
+  const retail = isMay ? await ensureRetail() : {};
+  const rows = searchItems().map((p) => {
+    const price = p.e ?? p.p;
+    const x = unitOf(p);
+    const r = retail[p.ean];
+    return [p.ean, p.n, p.s, p.c, csvNum(price), csvNum(p.lp && p.lp > price ? p.lp : ''), p.pr || '', p.q || '', p.pk || '', x ? csvNum(price / x.q) : '', x ? x.u : '', isMay && r?.price ? csvNum(r.price) : '', isMay && r?.price ? csvNum((r.price / price - 1) * 100) : '', unseen(p) ? 'no visto' : '', p.l ? fmtDateFull(p.l) : ''];
+  });
+  downloadCsv(`precios-${srcFileTag(id)}-${today()}.csv`, ['EAN', 'Producto', 'Sección', 'Categoría', 'Precio', 'Precio anterior/lista', 'Promo', 'Compra mínima', 'Bulto', 'Precio por unidad', 'Unidad', 'Precio minorista', 'Margen %', 'Estado', 'Visto'], rows);
+}
+
+async function downloadHistoryCsv() {
+  const id = curId();
+  const btn = $('#dlHistory');
+  btn.disabled = true;
+  btn.textContent = 'Preparando…';
+  try {
+    const history = await ensureHistory(id);
+    const rows = [];
+    for (const p of D().products) {
+      for (const r of historyRows(history[p.ean] || [], p.e ?? p.p)) rows.push([p.ean, p.n, p.c, ...r]);
+    }
+    downloadCsv(`historial-${srcFileTag(id)}-${today()}.csv`, ['EAN', 'Producto', 'Categoría', 'Desde', 'Hasta', 'Precio', 'Precio sin promo'], rows);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⬇️ Historial completo (CSV)';
+  }
+}
+
+function downloadOppCsv() {
+  const rows = oppItems().map((o) => [o.kind, o.branch || '', o.ean, o.name, o.category, csvNum(o.price), csvNum(o.listPrice || ''), ...['descuento', 'sucursal', 'reventa', 'bajoMayorista', 'kilo'].map((k) => (o.signals?.[k] !== undefined ? csvNum(o.signals[k] * 100) : '')), (o.reasons || []).join(' | ')]);
+  downloadCsv(`oportunidades-${S.kind}-${today()}.csv`, ['Fuente', 'Sucursal', 'EAN', 'Producto', 'Categoría', 'Precio', 'Precio anterior/lista', 'Descuento %', 'Vs sucursales %', 'Margen reventa %', 'Vs Maxi %', 'Kg vs categoría %', 'Motivos'], rows);
 }
 
 function closeDetail() {
   $('#detail').close();
-  if (/^#(p|may|min)=/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
+  detailCtx = null;
+  if (/^#(p|may|min|src)=/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
 }
 
 // ---------- navegación ----------
 function setTab(tab) {
-  if (tab === 'reventa' && S.source !== 'mayorista') tab = 'alertas';
+  if (tab === 'reventa' && S.kind !== 'mayorista') tab = 'oportunidades';
   S.tab = tab;
   store.set('tab', tab);
   document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
@@ -398,28 +589,31 @@ function setTab(tab) {
   window.scrollTo({ top: 0 });
 }
 function renderTab() {
-  ({ alertas: renderAlerts, reventa: renderResale, bajas: renderDrops, buscar: renderSearch, estado: renderStatus })[S.tab]?.();
+  ({ oportunidades: renderOpp, alertas: renderAlerts, reventa: renderResale, bajas: renderDrops, buscar: renderSearch, estado: renderStatus })[S.tab]?.();
 }
 
-async function setSource(src) {
-  if (!SRC[src]) return;
-  S.source = src;
-  store.set('source', src);
-  document.body.dataset.source = src;
+function resetFilterChips() {
+  if (S.kind !== 'mayorista' && S.alertType === 'reventa') S.alertType = '';
+  if ((S.kind !== 'mayorista' && ['sucursal', 'reventa'].includes(S.oppSig)) || (S.kind !== 'minorista' && S.oppSig === 'bajoMayorista')) S.oppSig = '';
+  document.querySelectorAll('#typeChips .chip').forEach((x) => x.classList.toggle('active', x.dataset.type === S.alertType));
+  document.querySelectorAll('#oppChips .chip').forEach((x) => x.classList.toggle('active', x.dataset.sig === S.oppSig));
+}
+
+async function setView(kind, branch = S.branch) {
+  S.kind = kind === 'minorista' ? 'minorista' : 'mayorista';
+  if (branch && srcOf(branch)) S.branch = branch;
+  store.set('source', S.kind);
+  if (S.branch) store.set('branch', S.branch);
+  document.body.dataset.source = S.kind;
   document.querySelectorAll('.sources button').forEach((b) => {
-    const on = b.dataset.source === src;
+    const on = b.dataset.source === S.kind;
     b.classList.toggle('active', on);
     b.setAttribute('aria-checked', String(on));
   });
   Object.keys(S.limits).forEach((k) => (S.limits[k] = PAGE));
-  if (src !== 'mayorista' && S.alertType === 'reventa') {
-    S.alertType = '';
-    document.querySelectorAll('#typeChips .chip').forEach((x) => x.classList.toggle('active', x.dataset.type === ''));
-  }
-  if (!D().loaded) {
-    $('#alertList').innerHTML = '<div class="empty">Cargando…</div>';
-    await loadSource(src);
-  }
+  resetFilterChips();
+  if (curId() && !D().loaded) await loadSource(curId());
+  renderBranches();
   fillSectors();
   updateStatusPill();
   setTab(S.tab);
@@ -435,50 +629,51 @@ function fillSectors() {
   }
 }
 
-async function loadSource(src) {
-  const f = SRC[src].files;
-  const [products, alerts] = await Promise.allSettled([getJson(f.products), getJson(f.alerts)]);
-  const d = S.data[src];
-  d.products = products.value?.items || [];
-  d.updatedAt = products.value?.updatedAt || null;
-  d.byEan = new Map(d.products.map((p) => [p.ean, p]));
-  d.alerts = (alerts.value?.alerts || []).map((a) => ({ ...a, source: a.source || src }));
-  d.loaded = true;
-  updateBadges();
-}
-
-async function loadAll() {
-  try { S.status = await getJson('status.json'); } catch { S.status = null; }
-  // compatibilidad con el formato viejo de status.json
-  if (S.status && !S.status.sources) S.status.sources = { mayorista: S.status };
-  await Promise.all([loadSource('mayorista'), loadSource('minorista')]);
-}
-
 function debounce(fn, ms = 200) {
   let t;
   return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
 }
 
-function routeHash() {
-  const m = location.hash.match(/^#(p|may|min)=([\w-]+)/);
-  if (!m) return;
-  const src = m[1] === 'min' ? 'minorista' : 'mayorista';
-  if (src !== S.source) setSource(src).then(() => openDetail(m[2], src));
-  else openDetail(m[2], src);
+async function routeHash() {
+  const h = location.hash.slice(1);
+  if (!h) return;
+  const qs = new URLSearchParams(h.replace(/^(may|min|p)=/, (m, k) => `legacy=${k}&p=`));
+  let id = qs.get('src');
+  const ean = qs.get('p');
+  if (!ean) return;
+  if (!id) id = qs.get('legacy') === 'min' ? minSrc()?.id : mayList()[0]?.id;
+  if (!srcOf(id)) return;
+  const k = kindOf(id);
+  if (k !== S.kind || (k === 'mayorista' && id !== S.branch)) await setView(k, k === 'mayorista' ? id : S.branch);
+  openDetail(ean, id);
 }
 
 function bind() {
   document.querySelectorAll('.tabs [data-tab], #statusPill').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
-  document.querySelectorAll('.sources [data-source]').forEach((b) => b.addEventListener('click', () => setSource(b.dataset.source)));
+  document.querySelectorAll('.sources [data-source]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.source)));
+  $('#branches').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-branch]');
+    if (b) setView('mayorista', b.dataset.branch);
+  });
   $('#typeChips').addEventListener('click', (e) => {
     const c = e.target.closest('.chip');
     if (!c) return;
     S.alertType = c.dataset.type;
-    document.querySelectorAll('#typeChips .chip').forEach((x) => x.classList.toggle('active', x === c));
+    resetFilterChips();
     S.limits.alertas = PAGE;
     renderAlerts();
   });
+  $('#oppChips').addEventListener('click', (e) => {
+    const c = e.target.closest('.chip');
+    if (!c) return;
+    S.oppSig = c.dataset.sig;
+    resetFilterChips();
+    S.limits.oportunidades = PAGE;
+    renderOpp();
+  });
   const on = (sel, ev, fn) => $(sel).addEventListener(ev, fn);
+  on('#oppSearch', 'input', debounce(renderOpp));
+  on('#oppScope', 'change', renderOpp);
   on('#alertSearch', 'input', debounce(renderAlerts));
   on('#alertRange', 'change', renderAlerts);
   on('#marginMin', 'input', debounce(renderResale, 120));
@@ -489,31 +684,34 @@ function bind() {
   on('#q', 'input', debounce(() => { S.limits.buscar = PAGE; renderSearch(); }));
   on('#searchSector', 'change', renderSearch);
   on('#searchSort', 'change', renderSearch);
+  on('#dlList', 'click', downloadListCsv);
+  on('#dlHistory', 'click', downloadHistoryCsv);
+  on('#dlOpp', 'click', downloadOppCsv);
   document.addEventListener('click', (e) => {
+    if (e.target.closest('#dlProduct')) { downloadProductCsv(); return; }
     const more = e.target.closest('[data-more]');
     if (more) { S.limits[more.dataset.more] += PAGE * 2; renderTab(); return; }
     const card = e.target.closest('.card[data-ean]');
-    if (card) openDetail(card.dataset.ean, S.source);
+    if (card) openDetail(card.dataset.ean, card.dataset.src || curId());
   });
   on('#closeDetail', 'click', closeDetail);
   $('#detail').addEventListener('click', (e) => { if (e.target.id === 'detail') closeDetail(); });
-  $('#detail').addEventListener('close', () => { if (/^#(p|may|min)=/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search); });
+  $('#detail').addEventListener('close', () => { if (/^#(p|may|min|src)=/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search); });
   window.addEventListener('hashchange', routeHash);
 }
 
 (async function init() {
   bind();
   await loadAll();
-  // Si el mayorista todavía no tiene datos y el minorista sí, arrancamos en minorista
-  let src = store.get('source', '');
-  if (!SRC[src]) src = !S.data.mayorista.products.length && S.data.minorista.products.length ? 'minorista' : 'mayorista';
-  const tab = store.get('tab', 'alertas');
-  S.tab = document.getElementById(`tab-${tab}`) ? tab : 'alertas';
-  await setSource(src);
+  let kind = store.get('source', '');
+  if (!['mayorista', 'minorista'].includes(kind)) kind = mayList().length ? 'mayorista' : 'minorista';
+  if (kind === 'mayorista' && !mayList().length && minSrc()) kind = 'minorista';
+  const tab = store.get('tab', 'oportunidades');
+  S.tab = document.getElementById(`tab-${tab}`) ? tab : 'oportunidades';
+  await setView(kind);
   routeHash();
   // refresco automático cada 5 minutos
   setInterval(async () => {
-    for (const k of Object.keys(S.data)) S.data[k] = blank();
     S.retail = null;
     await loadAll();
     fillSectors();

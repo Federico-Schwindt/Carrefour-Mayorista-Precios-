@@ -25,8 +25,10 @@
       <button role="radio" data-source="mayorista" class="active" aria-checked="true">🏪 Mayorista <small>Maxi</small> <span class="badge" id="badgeMay"></span></button>
       <button role="radio" data-source="minorista" aria-checked="false">🛒 Minorista <small>carrefour.com.ar</small> <span class="badge" id="badgeMin"></span></button>
     </div>
+    <div class="branches only-may" id="branches" role="radiogroup" aria-label="Sucursal"></div>
     <nav class="tabs" role="tablist">
-      <button role="tab" data-tab="alertas" class="active">Alertas</button>
+      <button role="tab" data-tab="oportunidades" class="active">🔥 Oportunidades</button>
+      <button role="tab" data-tab="alertas">Alertas</button>
       <button role="tab" data-tab="reventa" class="only-may">Reventa</button>
       <button role="tab" data-tab="bajas">Bajas</button>
       <button role="tab" data-tab="buscar">Buscar</button>
@@ -37,8 +39,32 @@
   <main>
     <div id="banner" class="banner" hidden></div>
 
+    <!-- OPORTUNIDADES (no necesitan historial) -->
+    <section id="tab-oportunidades" class="tab active">
+      <p class="hint">Productos que <b>ya están baratos</b>, calculado en cada lectura sin esperar historial: descuento contra el precio tachado o de lista, diferencia entre sucursales, contra carrefour.com.ar y precio por kg/l contra su categoría.</p>
+      <div class="filters">
+        <div class="chips" id="oppChips">
+          <button class="chip active" data-sig="">Todas</button>
+          <button class="chip" data-sig="descuento">🏷️ Gran descuento</button>
+          <button class="chip only-may" data-sig="sucursal">🏪 Entre sucursales</button>
+          <button class="chip only-may" data-sig="reventa">💰 Reventa</button>
+          <button class="chip only-min" data-sig="bajoMayorista">🛒 Más barato que Maxi</button>
+          <button class="chip" data-sig="kilo">⚖️ Precio por kg</button>
+        </div>
+        <div class="row">
+          <input type="search" id="oppSearch" placeholder="Buscar…" autocomplete="off">
+          <select id="oppScope" class="only-may">
+            <option value="branch">Esta sucursal</option>
+            <option value="all">Todas las sucursales</option>
+          </select>
+        </div>
+        <div class="row"><button class="btn ghost small" id="dlOpp" type="button">⬇️ Descargar (CSV)</button><span class="count" id="oppCount"></span></div>
+      </div>
+      <div id="oppList" class="list"></div>
+    </section>
+
     <!-- ALERTAS -->
-    <section id="tab-alertas" class="tab active">
+    <section id="tab-alertas" class="tab">
       <div class="filters">
         <div class="chips" id="typeChips">
           <button class="chip active" data-type="">Todas</button>
@@ -109,6 +135,10 @@
             <option value="promo">En oferta primero</option>
           </select>
         </div>
+      </div>
+      <div class="row dl-row">
+        <button class="btn ghost small" id="dlList" type="button">⬇️ Lista de precios (CSV)</button>
+        <button class="btn ghost small" id="dlHistory" type="button">⬇️ Historial completo (CSV)</button>
       </div>
       <div id="searchCount" class="count"></div>
       <div id="searchList" class="list"></div>

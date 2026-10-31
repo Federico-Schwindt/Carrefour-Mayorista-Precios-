@@ -1,9 +1,10 @@
 // Reglas de detección. Funciones puras (sin red ni disco) para poder testearlas.
 import { parseQuantity } from './parse.js';
 
-export const TYPE_RANK = { error: 5, reventa: 4, baja: 3, minimo: 2 };
+export const TYPE_RANK = { error: 5, oportunidad: 4.5, reventa: 4, baja: 3, minimo: 2 };
 export const TYPE_LABEL = {
   error: 'Posible error de precio',
+  oportunidad: 'Oportunidad: ya está barato',
   reventa: 'Buen margen para reventa',
   baja: 'Baja fuerte',
   minimo: 'Mínimo histórico',
@@ -11,7 +12,7 @@ export const TYPE_LABEL = {
 
 const DAY_MIN = 24 * 60;
 // Rubros donde comparar precio por kg/l no tiene sentido (capacidad ≠ contenido)
-const NON_UNIT_SECTORS = /electro|tecnolog|hogar|indumentaria|jugueter|librer|automotor|aire libre/i;
+const NON_UNIT_SECTORS = /electro|tecnolog|hogar|indumentaria|jugueter|librer|automotor|aire libre|beb[eé]|bazar|textil/i;
 
 export function effectivePrice(p) {
   if (!p || !p.price) return null;
@@ -53,21 +54,43 @@ export function seriesStats(series = [], nowMin) {
   return { prev, min, ref: median(samples) ?? prev, days };
 }
 
-/** Mediana de precio por kg/l/unidad por categoría */
-export function buildUnitIndex(products) {
+/** Cantidad comparable (sólo kg o l; nunca "unidades", que no son comparables entre sí) */
+export function unitQty(p, multipack = true) {
+  if (NON_UNIT_SECTORS.test(p.sector || '')) return null;
+  const q = parseQuantity(p.name, { multipack });
+  return q && q.unit !== 'u' && q.qty > 0 ? q : null;
+}
+
+const quantile = (sorted, q) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.round((sorted.length - 1) * q)))];
+
+/** Mediana y dispersión del precio por kg/l en cada categoría */
+export function buildUnitIndex(products, { multipack = true } = {}) {
   const groups = new Map();
   for (const p of products) {
     const eff = effectivePrice(p);
-    if (NON_UNIT_SECTORS.test(p.sector || '')) continue;
-    const q = parseQuantity(p.name);
+    const q = unitQty(p, multipack);
     if (!eff || !q || !p.category) continue;
     const key = `${p.category}|${q.unit}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(eff / q.qty);
   }
   const index = new Map();
-  for (const [key, list] of groups) index.set(key, { median: median(list), n: list.length });
+  for (const [key, list] of groups) {
+    const s = list.slice().sort((a, b) => a - b);
+    index.set(key, { median: median(s), n: s.length, p25: quantile(s, 0.25), p75: quantile(s, 0.75) });
+  }
   return index;
+}
+
+/** Compara el precio por kg/l con su categoría, sólo si la categoría es pareja. */
+export function unitCompare(p, unitIndex, rules, multipack = true) {
+  const q = unitQty(p, multipack);
+  const g = q && unitIndex?.get(`${p.category}|${q.unit}`);
+  if (!g || g.n < rules.unitOutlierMinGroup || !(g.median > 0)) return null;
+  // Categorías muy desparejas (ej. colonias vs. perfumes importados) no sirven para comparar
+  if (!(g.p25 > 0) || g.p75 / g.p25 > (rules.unitMaxSpread || 3)) return null;
+  const unitPrice = effectivePrice(p) / q.qty;
+  return { q, g, unitPrice, ratio: unitPrice / g.median };
 }
 
 const pct = (x) => `${Math.round(x * 100)}%`;
@@ -109,18 +132,14 @@ export function evaluateProduct(p, ctx) {
     hits.add('error');
     reasons.push(`Está ${pct(1 - eff / p.listPrice)} por debajo de su precio de lista (${ars(p.listPrice)})`);
   }
-  if (unitIndex && wentDown && !NON_UNIT_SECTORS.test(p.sector || '')) {
-    const q = parseQuantity(p.name);
-    const g = q && unitIndex.get(`${p.category}|${q.unit}`);
-    if (g && g.n >= rules.unitOutlierMinGroup && g.median > 0) {
-      const unitPrice = eff / q.qty;
-      m.unitPrice = unitPrice;
-      m.unit = q.unit;
-      m.unitVsCategory = unitPrice / g.median;
-      if (unitPrice <= g.median * rules.unitOutlierRatio) {
-        hits.add('error');
-        reasons.push(`Precio por ${q.unit} (${ars(unitPrice)}) es ${pct(1 - m.unitVsCategory)} menor que la mediana de "${p.category}"`);
-      }
+  const uc = unitIndex && wentDown ? unitCompare(p, unitIndex, rules, rules.unitMultipack !== false) : null;
+  if (uc) {
+    m.unitPrice = uc.unitPrice;
+    m.unit = uc.q.unit;
+    m.unitVsCategory = uc.ratio;
+    if (uc.ratio <= rules.unitOutlierRatio) {
+      hits.add('error');
+      reasons.push(`Precio por ${uc.q.unit} (${ars(uc.unitPrice)}) es ${pct(1 - uc.ratio)} menor que la mediana de "${p.category}"`);
     }
   }
 
@@ -160,7 +179,7 @@ export function evaluateProduct(p, ctx) {
 export function detectAll({ current, prevSnapshot, history, retail, rules, nowMin, retailFreshSet = new Set() }) {
   const baseline = !prevSnapshot;
   const list = [...current.values()].filter((p) => p.price);
-  const unitIndex = buildUnitIndex(list);
+  const unitIndex = buildUnitIndex(list, { multipack: rules.unitMultipack !== false });
   const found = [];
   let compared = 0;
   let strongDrops = 0;
@@ -224,3 +243,134 @@ export function appendHistory(history, current, nowMin, keepDays) {
 }
 
 export const round2 = (n) => Math.round(n * 100) / 100;
+
+// ---------------------------------------------------------------------------
+// OPORTUNIDADES: señales que funcionan desde la primera lectura (sin historial)
+// ---------------------------------------------------------------------------
+export const OPP_LABEL = {
+  descuento: 'Gran descuento',
+  sucursal: 'Más barato que otras sucursales',
+  reventa: 'Margen de reventa',
+  bajoMayorista: 'Minorista más barato que Maxi',
+  kilo: 'Precio por kg/l muy bajo',
+};
+
+/**
+ * datasets: [{ src: {id, kind, name}, current: Map<ean, product> }]
+ * retail:   { ean: {price, available, url} }  (precios de carrefour.com.ar)
+ * opp:      config.opp ;  rules: config.rules
+ * Devuelve una lista ordenada por puntaje.
+ */
+export function findOpportunities({ datasets, retail = {}, opp, rules }) {
+  const show = opp.show;
+  const notify = opp.notify;
+  // Precio de cada EAN en cada sucursal mayorista
+  const mayIndex = new Map();
+  for (const d of datasets) {
+    if (d.src.kind !== 'mayorista') continue;
+    for (const p of d.current.values()) {
+      const eff = effectivePrice(p);
+      if (!eff) continue;
+      if (!mayIndex.has(p.ean)) mayIndex.set(p.ean, []);
+      mayIndex.get(p.ean).push({ id: d.src.id, name: d.src.name, price: eff });
+    }
+  }
+
+  const out = [];
+  for (const d of datasets) {
+    const list = [...d.current.values()].filter((p) => p.price);
+    const isMay = d.src.kind === 'mayorista';
+    const unitIndex = buildUnitIndex(list, { multipack: !isMay });
+    for (const p of list) {
+      const eff = effectivePrice(p);
+      if (!eff || eff < rules.minPrice) continue;
+      const sig = {};
+      const reasons = [];
+      const refs = {};
+
+      if (p.listPrice && p.listPrice > eff) {
+        const v = 1 - eff / p.listPrice;
+        // Un "precio de lista" 7 veces más alto suele ser un dato mal cargado, no un descuento
+        if (v >= show.descuento && v <= (show.maxDescuento ?? 0.85)) {
+          sig.descuento = v;
+          reasons.push(`${pct(v)} menos que su precio ${isMay ? 'anterior (tachado)' : 'de lista'} ${ars(p.listPrice)}`);
+        }
+      }
+      if (isMay) {
+        const others = (mayIndex.get(p.ean) || []).filter((o) => o.id !== d.src.id);
+        if (others.length) {
+          const med = median(others.map((o) => o.price));
+          refs.others = others;
+          const v = 1 - eff / med;
+          if (v >= show.sucursal) {
+            sig.sucursal = v;
+            reasons.push(`${pct(v)} más barato que en ${others.map((o) => `${o.name} ${ars(o.price)}`).join(', ')}`);
+          }
+        }
+        const r = retail[p.ean];
+        if (r?.price && r.available !== false) {
+          refs.retail = r.price;
+          refs.retailUrl = r.url || null;
+          const v = r.price / eff - 1;
+          if (v >= show.reventa) {
+            sig.reventa = v;
+            reasons.push(`Margen ${pct(v)}: en carrefour.com.ar sale ${ars(r.price)}`);
+          }
+        }
+      } else {
+        const may = mayIndex.get(p.realEan || p.ean);
+        if (may?.length) {
+          const best = may.slice().sort((a, b) => a.price - b.price)[0];
+          refs.mayorista = may;
+          const v = 1 - eff / best.price;
+          if (v >= show.bajoMayorista) {
+            sig.bajoMayorista = v;
+            reasons.push(`${pct(v)} más barato que en Maxi ${best.name} (${ars(best.price)})`);
+          }
+        }
+      }
+      {
+        const uc = unitCompare(p, unitIndex, rules, !isMay);
+        if (uc && uc.ratio <= show.kilo) {
+          sig.kilo = 1 - uc.ratio;
+          reasons.push(`Precio por ${uc.q.unit} ${ars(uc.unitPrice)}: ${pct(1 - uc.ratio)} menos que la mediana de "${p.category}" (${ars(uc.g.median)})`);
+        }
+      }
+      const keys = Object.keys(sig);
+      if (!keys.length) continue;
+
+      const strong = [];
+      if (sig.descuento >= (isMay ? notify.descuento : notify.descuentoMinorista ?? notify.descuento)) strong.push('descuento');
+      if (sig.sucursal >= notify.sucursal) strong.push('sucursal');
+      if (sig.reventa >= notify.reventa) strong.push('reventa');
+      if (sig.bajoMayorista >= notify.bajoMayorista) strong.push('bajoMayorista');
+      if (notify.kilo > 0 && sig.kilo !== undefined && 1 - sig.kilo <= notify.kilo) strong.push('kilo');
+
+      const score =
+        // el precio por kg es la señal más ruidosa: pesa menos en el orden
+        Math.max(sig.descuento || 0, (sig.sucursal || 0) * 1.2, Math.min(sig.reventa || 0, 2) * 0.4, (sig.bajoMayorista || 0) * 1.2, (sig.kilo || 0) * 0.35) +
+        0.05 * (keys.length - 1);
+      out.push({
+        sourceId: d.src.id,
+        kind: d.src.kind,
+        branch: isMay ? d.src.name : null,
+        ean: p.ean,
+        name: p.name,
+        sector: p.sector,
+        category: p.category,
+        price: round2(eff),
+        listPrice: p.listPrice ? round2(p.listPrice) : null,
+        minQty: p.minQty || null,
+        promo: p.promo || null,
+        url: p.url || null,
+        image: p.image || null,
+        signals: Object.fromEntries(keys.map((k) => [k, round2(sig[k])])),
+        strong,
+        reasons,
+        refs,
+        score: round2(score),
+      });
+    }
+  }
+  return out.sort((a, b) => b.score - a.score);
+}

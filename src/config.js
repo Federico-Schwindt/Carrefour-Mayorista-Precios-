@@ -31,9 +31,15 @@ export const config = {
     seller: str('CF_SELLER', '240'), // 240 = GUALEGUAYCHU - Primera Junta y Ruta 136
     delivery: str('CF_DELIVERY', 'retiro'), // retiro | envio
   },
-  // Cookie de una sesión abierta a mano en el sitio (secret CF_COOKIE).
-  // Formato: "PHPSESSID=xxxx"
-  manualCookie: str('CF_COOKIE'),
+  // Cookies de sesiones abiertas a mano en el sitio: UNA POR SUCURSAL.
+  // Secrets CF_COOKIE, CF_COOKIE_2 … CF_COOKIE_6. Formato "PHPSESSID=xxxx" o sólo "xxxx".
+  // La sucursal de cada una se detecta sola.
+  cookies: ['CF_COOKIE', 'CF_COOKIE_2', 'CF_COOKIE_3', 'CF_COOKIE_4', 'CF_COOKIE_5', 'CF_COOKIE_6']
+    .map((v, i) => ({ var: v, index: i + 1, value: str(v) }))
+    .filter((c) => c.value),
+  get manualCookie() {
+    return this.cookies[0]?.value || '';
+  },
   // Clave para cifrar la sesión que se guarda entre ejecuciones.
   sessionSecret: str('SESSION_SECRET'),
 
@@ -64,7 +70,9 @@ export const config = {
     listRatio: num('ALERT_LIST_RATIO', 0.35),
     // Posible error: precio por kg/l/unidad <= X * mediana de su categoría
     unitOutlierRatio: num('ALERT_UNIT_RATIO', 0.3),
-    unitOutlierMinGroup: num('ALERT_UNIT_MIN_GROUP', 6),
+    unitOutlierMinGroup: num('ALERT_UNIT_MIN_GROUP', 8),
+    // Sólo se compara por kg/l en categorías parejas (percentil 75 / percentil 25 <= X)
+    unitMaxSpread: num('ALERT_UNIT_MAX_SPREAD', 3),
     // Mínimo histórico: requiere N días de historial y estar X% bajo la mediana
     minHistoryDays: num('ALERT_MIN_HISTORY_DAYS', 5),
     minVsMedianPct: num('ALERT_MIN_VS_MEDIAN_PCT', 0.08),
@@ -117,6 +125,36 @@ export const config = {
     maxPerRun: num('NOTIFY_MAX_PER_RUN', 25),
     // Tipos que generan notificación push (el resto sólo aparece en la web)
     types: str('NOTIFY_TYPES', 'error,reventa,baja,minimo').split(',').map((s) => s.trim()),
+  },
+
+  // ---- OPORTUNIDADES: señales que NO necesitan historial ----
+  opp: {
+    // Para aparecer en la pestaña "Oportunidades"
+    show: {
+      descuento: num('OPP_SHOW_DESCUENTO', 0.3), // vs precio tachado / de lista
+      sucursal: num('OPP_SHOW_SUCURSAL', 0.15), // más barato que la mediana de otras sucursales
+      reventa: num('OPP_SHOW_REVENTA', 0.35), // margen vs carrefour.com.ar
+      bajoMayorista: num('OPP_SHOW_BAJO_MAYORISTA', 0.1), // minorista más barato que Maxi
+      kilo: num('OPP_SHOW_KILO', 0.45), // precio por kg/l <= X * mediana de la categoría
+      maxDescuento: num('OPP_MAX_DESCUENTO', 0.85), // más que esto = precio de lista dudoso
+    },
+    // Para mandar aviso push (una sola vez por producto, salvo que baje más)
+    notify: {
+      descuento: num('OPP_NOTIFY_DESCUENTO', 0.5), // mayorista vs tachado
+      descuentoMinorista: num('OPP_NOTIFY_DESCUENTO_MIN', 0.6), // minorista vs lista (suelen inflarla)
+      sucursal: num('OPP_NOTIFY_SUCURSAL', 0.35),
+      reventa: num('OPP_NOTIFY_REVENTA', 1.5),
+      bajoMayorista: num('OPP_NOTIFY_BAJO_MAYORISTA', 0.4),
+      // Comparar por kg entre marcas distintas da falsas alarmas: sólo en la web (0 = sin aviso)
+      kilo: num('OPP_NOTIFY_KILO', 0),
+    },
+    // Si aparecen más de X oportunidades fuertes nuevas juntas en una fuente
+    // (primera vez, sucursal nueva, cambio general), se manda UN resumen.
+    surge: num('OPP_SURGE', 12),
+    enabled: bool('OPP_NOTIFY', true),
+    maxPerRun: num('OPP_NOTIFY_MAX_PER_RUN', 10),
+    repeatDays: num('OPP_REPEAT_DAYS', 7),
+    keep: num('OPP_KEEP', 1500),
   },
 
   historyKeepDays: num('HISTORY_KEEP_DAYS', 400),
