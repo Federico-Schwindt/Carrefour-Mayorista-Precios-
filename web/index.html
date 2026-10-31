@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Radar Maxi</title>
+  <meta name="description" content="Alertas de precios de Carrefour Maxi: bajas, errores y margen de reventa.">
+  <meta name="theme-color" content="#0b4ea2">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📉</text></svg>">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="top__row">
+      <div>
+        <h1>Radar Maxi</h1>
+        <div class="sub" id="branch">Carrefour Maxi</div>
+      </div>
+      <button class="status" id="statusPill" type="button" data-tab="estado">
+        <span class="dot"></span><span id="statusText">Cargando…</span>
+      </button>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="alertas" class="active">Alertas <span class="badge" id="badgeAlerts"></span></button>
+      <button role="tab" data-tab="reventa">Reventa</button>
+      <button role="tab" data-tab="bajas">Bajas</button>
+      <button role="tab" data-tab="buscar">Buscar</button>
+      <button role="tab" data-tab="estado">Estado</button>
+    </nav>
+  </header>
+
+  <main>
+    <div id="banner" class="banner" hidden></div>
+
+    <!-- ALERTAS -->
+    <section id="tab-alertas" class="tab active">
+      <div class="filters">
+        <div class="chips" id="typeChips">
+          <button class="chip active" data-type="">Todas</button>
+          <button class="chip" data-type="error">🚨 Errores</button>
+          <button class="chip" data-type="reventa">💰 Reventa</button>
+          <button class="chip" data-type="baja">📉 Bajas</button>
+          <button class="chip" data-type="minimo">🏆 Mínimos</button>
+        </div>
+        <div class="row">
+          <input type="search" id="alertSearch" placeholder="Buscar en alertas…" autocomplete="off">
+          <select id="alertRange">
+            <option value="24">Últimas 24 h</option>
+            <option value="72">Últimos 3 días</option>
+            <option value="168" selected>Última semana</option>
+            <option value="720">Último mes</option>
+            <option value="0">Todo</option>
+          </select>
+        </div>
+      </div>
+      <div id="alertList" class="list"></div>
+    </section>
+
+    <!-- REVENTA -->
+    <section id="tab-reventa" class="tab">
+      <p class="hint">Margen bruto comparando el precio mayorista con el de <b>carrefour.com.ar</b> (minorista). Los precios minoristas se actualizan de a tandas.</p>
+      <div class="filters">
+        <div class="row">
+          <label class="lbl">Margen mínimo <b id="marginVal">30%</b></label>
+          <input type="range" id="marginMin" min="0" max="150" step="5" value="30">
+        </div>
+        <div class="row">
+          <input type="search" id="resaleSearch" placeholder="Buscar producto…" autocomplete="off">
+          <select id="resaleSector"><option value="">Todas las secciones</option></select>
+        </div>
+      </div>
+      <div id="resaleList" class="list"></div>
+    </section>
+
+    <!-- BAJAS -->
+    <section id="tab-bajas" class="tab">
+      <div class="filters">
+        <div class="row">
+          <select id="dropWindow">
+            <option value="1">vs. hace 24 h</option>
+            <option value="7" selected>vs. hace 7 días</option>
+            <option value="30">vs. hace 30 días</option>
+            <option value="ref">vs. precio habitual</option>
+          </select>
+          <select id="dropSector"><option value="">Todas las secciones</option></select>
+        </div>
+      </div>
+      <div id="dropList" class="list"></div>
+    </section>
+
+    <!-- BUSCAR -->
+    <section id="tab-buscar" class="tab">
+      <div class="filters">
+        <div class="row">
+          <input type="search" id="q" placeholder="Nombre, marca o código EAN…" autocomplete="off">
+        </div>
+        <div class="row">
+          <select id="searchSector"><option value="">Todas las secciones</option></select>
+          <select id="searchSort">
+            <option value="name">A-Z</option>
+            <option value="priceAsc">Precio ↑</option>
+            <option value="priceDesc">Precio ↓</option>
+            <option value="unit">Precio por kg/l ↑</option>
+            <option value="promo">En oferta primero</option>
+          </select>
+        </div>
+      </div>
+      <div id="searchCount" class="count"></div>
+      <div id="searchList" class="list"></div>
+    </section>
+
+    <!-- ESTADO -->
+    <section id="tab-estado" class="tab">
+      <div id="statusBox"></div>
+    </section>
+  </main>
+
+  <dialog id="detail">
+    <div class="sheet">
+      <button class="close" id="closeDetail" aria-label="Cerrar">✕</button>
+      <div id="detailBody"></div>
+    </div>
+  </dialog>
+
+  <template id="emptyTpl"><div class="empty">Nada por acá todavía.</div></template>
+  <script src="app.js" type="module"></script>
+</body>
+</html>

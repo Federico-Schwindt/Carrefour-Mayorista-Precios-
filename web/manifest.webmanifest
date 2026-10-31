@@ -1,0 +1,15 @@
+{
+  "name": "Radar Maxi — alertas de precios",
+  "short_name": "Radar Maxi",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0b4ea2",
+  "theme_color": "#0b4ea2",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230b4ea2'/><text x='50' y='68' font-size='56' text-anchor='middle'>📉</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

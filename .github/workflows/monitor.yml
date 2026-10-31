@@ -1,0 +1,164 @@
+name: Monitor de precios
+
+on:
+  schedule:
+    - cron: '*/30 * * * *' # cada 30 minutos (GitHub puede demorarlo algunos minutos)
+  workflow_dispatch:
+    inputs:
+      force_login:
+        description: 'Forzar login nuevo (ignora la sesión guardada)'
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths: ['src/**', 'web/**', 'package*.json', '.github/workflows/monitor.yml']
+
+permissions:
+  contents: write # guardar datos en la rama "data"
+  pages: write # publicar la web
+  id-token: write
+
+concurrency:
+  group: monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      TZ: America/Argentina/Buenos_Aires
+      DATA_DIR: data
+      # --- Login / sucursal (Settings → Secrets and variables → Actions) ---
+      CF_NAME: ${{ secrets.CF_NAME }}
+      CF_CUIT: ${{ secrets.CF_CUIT }}
+      CF_PHONE: ${{ secrets.CF_PHONE }}
+      CF_EMAIL: ${{ secrets.CF_EMAIL }}
+      CF_COOKIE: ${{ secrets.CF_COOKIE }}
+      CF_REGION: ${{ vars.CF_REGION || 'ENTRE RIOS' }}
+      CF_SELLER: ${{ vars.CF_SELLER || '240' }}
+      SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+      # --- Notificaciones ---
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      DASHBOARD_URL: ${{ vars.DASHBOARD_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
+      # --- Ajustes opcionales (Variables) ---
+      ALERT_DROP_PCT: ${{ vars.ALERT_DROP_PCT }}
+      ALERT_ERROR_RATIO: ${{ vars.ALERT_ERROR_RATIO }}
+      ALERT_RESALE_MARGIN: ${{ vars.ALERT_RESALE_MARGIN }}
+      ALERT_MIN_PRICE: ${{ vars.ALERT_MIN_PRICE }}
+      NOTIFY_TYPES: ${{ vars.NOTIFY_TYPES }}
+      NOTIFY_MAX_PER_RUN: ${{ vars.NOTIFY_MAX_PER_RUN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci --no-audit --no-fund
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+
+      - name: Tests
+        run: npm test
+
+      - name: Traer datos anteriores (rama data)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git ls-remote --exit-code --heads "$url" data >/dev/null 2>&1; then
+            git clone --quiet --depth 1 --branch data "$url" data
+          else
+            echo "Primera ejecución: la rama data todavía no existe."
+            mkdir -p data
+          fi
+
+      - name: Restaurar sesión cifrada
+        uses: actions/cache/restore@v4
+        with:
+          path: .session
+          key: session-${{ github.run_id }}
+          restore-keys: session-
+
+      - name: Restaurar navegador (sólo se usa si hay que loguearse)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Correr monitor
+        id: run
+        run: node src/run.js ${{ inputs.force_login && '--force-login' || '' }}
+        continue-on-error: true
+
+      - name: Guardar sesión cifrada
+        if: always() && hashFiles('.session/session.enc') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: .session
+          key: session-${{ github.run_id }}
+
+      - name: Guardar datos en la rama data
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd data
+          [ -f status.json ] || { echo "No hay datos para guardar"; exit 0; }
+          rm -f *.tmp
+          git init -q 2>/dev/null || true
+          git config user.name "radar-maxi[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Un único commit (huérfano) para que el repo no crezca sin límite;
+          # el historial de precios vive dentro de history.json.
+          git checkout -q --orphan snapshot
+          git add -A
+          git commit -q -m "datos $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" snapshot:data
+
+      - name: Armar sitio
+        if: always()
+        run: |
+          mkdir -p _site/data
+          cp -r web/. _site/
+          cp data/*.json _site/data/ 2>/dev/null || true
+          rm -f _site/data/state.json
+          touch _site/.nojekyll
+
+      - uses: actions/configure-pages@v5
+        if: always()
+        continue-on-error: true
+
+      - uses: actions/upload-pages-artifact@v3
+        if: always()
+        with:
+          path: _site
+
+      - name: Publicar en GitHub Pages
+        if: always()
+        id: deploy
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      - name: Resultado
+        if: always()
+        run: |
+          if [ "${{ steps.deploy.outcome }}" != "success" ]; then
+            echo "::warning::No se pudo publicar la web. Activá Settings → Pages → Source: GitHub Actions."
+          fi
+          if [ "${{ steps.run.outcome }}" != "success" ]; then
+            fails=$(node -e "try{console.log(require('./data/status.json').consecutiveFailures||0)}catch{console.log(0)}")
+            echo "::error::El monitor falló ($fails veces seguidas). Mirá el log de 'Correr monitor'."
+            # Marcamos el workflow en rojo sólo a la 3ª falla seguida y luego 1 vez por día,
+            # así GitHub te manda un mail de respaldo sin llenarte la casilla.
+            if [ "$fails" -eq 3 ] || { [ "$fails" -gt 3 ] && [ $((fails % 48)) -eq 0 ]; }; then exit 1; fi
+          fi

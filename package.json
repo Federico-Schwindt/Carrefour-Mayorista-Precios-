@@ -1,0 +1,23 @@
+{
+  "name": "carrefour-mayorista-precios",
+  "version": "1.0.0",
+  "description": "Monitor de precios de Carrefour Maxi (comerciante.carrefour.com.ar) con alertas de bajas, errores de precio y margen de reventa.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/run.js",
+    "daemon": "node src/daemon.js",
+    "login": "node src/run.js --login-only",
+    "check": "node src/run.js --dry-run",
+    "test": "node --test \"test/*.test.js\"",
+    "serve": "node src/serve.js",
+    "sucursales": "node src/sucursales.js"
+  },
+  "dependencies": {
+    "node-html-parser": "9.0.6",
+    "playwright": "1.63.0"
+  }
+}
