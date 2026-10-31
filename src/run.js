@@ -20,6 +20,22 @@ import { refreshRetail } from './retail.js';
 import { detectAll, appendHistory, shouldNotify, effectivePrice, round2, findOpportunities, OPP_LABEL } from './detect.js';
 import { notifyAlert, notifySystem, channelsConfigured } from './notify.js';
 import { readJson, writeJson, toMin } from './store.js';
+import { buildExcluder } from './filters.js';
+import { checkBankPromos } from './promos.js';
+
+const isExcluded = buildExcluder();
+/** Saca del catálogo los productos caros o que no interesan (cochecitos, butacas…) */
+function applyExclusions(map, label) {
+  let n = 0;
+  for (const [ean, p] of map) {
+    if (isExcluded(p)) {
+      map.delete(ean);
+      n++;
+    }
+  }
+  if (n) log.info(`[${label}] ${n} productos excluidos (más de $${config.filters.maxUnitPrice.toLocaleString('es-AR')} o en la lista de exclusión).`);
+  return n;
+}
 import { log } from './log.js';
 
 const argv = process.argv.slice(2);
@@ -79,6 +95,8 @@ function compactProduct(p, prevItem, nowIso) {
     ...(p.url ? { u: slimUrl(p.url) } : {}),
     ...(p.image ? { im: slimImg(p.image) } : {}),
     ...(p.seller ? { sl: p.seller } : {}),
+    ...(p.limit ? { lim: p.limit } : {}),
+    ...(p.unitPrice ? { up: round2(p.unitPrice), uu: p.unit } : {}),
     f: prevItem?.f || nowIso, // primera vez visto
     l: nowIso, // última vez visto
   };
@@ -205,9 +223,12 @@ async function processSource(src, current, ctx) {
     // salvo que sean de una sección que ya no se lee (ej. se sacó Tecnología)
     const sectors = new Set([...current.values()].map((p) => p.sector));
     for (const [ean, it] of Object.entries(prevItems)) {
-      if (!current.has(ean) && sectors.has(it.s) && Date.now() - Date.parse(it.l) < 7 * 864e5) items.push(it);
+      if (!current.has(ean) && sectors.has(it.s) && !isExcluded(it) && Date.now() - Date.parse(it.l) < 7 * 864e5) items.push(it);
     }
   }
+  // El historial sólo guarda productos que se siguen mostrando
+  const keep = new Set(items.map((i) => i.ean));
+  for (const ean of Object.keys(history)) if (!keep.has(ean)) delete history[ean];
   items.sort((a, b) => a.n.localeCompare(b.n, 'es'));
   const meta = isMay ? { branch: src.name } : { categories: config.minorista.categories };
   await writeJson(src.files.history, history);
@@ -226,6 +247,7 @@ async function readBranch(session) {
     err.code = 'NO_SESSION';
     throw err;
   }
+  applyExclusions(current, `may-${session.branch.slug}`);
   const warnings = catalog.failed.length ? [`Secciones con error: ${catalog.failed.join(', ')}`] : [];
   return { current, warnings };
 }
@@ -236,6 +258,7 @@ async function readMinorista(db, nowIso) {
   const current = catalog.products;
   log.info(`[min] ${current.size} productos con stock.`);
   if (current.size < 200) throw new Error(`Sólo ${current.size} productos minoristas: la API pública cambió o falló.`);
+  applyExclusions(current, 'min');
   // Reaprovechamos estos precios para el margen de reventa del mayorista
   for (const p of current.values()) {
     if (!p.realEan || p.seller) continue; // sólo vendidos por Carrefour
@@ -373,7 +396,17 @@ async function processOpportunities(datasets, ctx) {
     const prev = await readJson(src.files.alerts, { alerts: [] });
     await writeJson(src.files.alerts, { ...prev, alerts: [...list, ...(prev.alerts || [])].slice(0, config.alertsKeep) });
   }
-  const slim = items.slice(0, config.opp.keep).map((it) => ({ ...it, url: it.url ? slimUrl(it.url) : null, image: it.image ? slimImg(it.image) : null }));
+  // Si una sucursal no se pudo leer esta vez, se conservan sus últimas oportunidades (marcadas)
+  const goodIds = new Set(datasets.map((d) => d.src.id));
+  const prevOpp = await readJson('oportunidades.json', { items: [] });
+  const carried = [];
+  for (const it of prevOpp.items || []) {
+    if (goodIds.has(it.sourceId)) continue;
+    const file = it.sourceId === 'min' ? 'min-products.json' : `${it.sourceId}-products.json`;
+    if (await exists(file)) carried.push({ ...it, stale: true });
+  }
+  const all = [...items.map((it) => ({ ...it, url: it.url ? slimUrl(it.url) : null, image: it.image ? slimImg(it.image) : null })), ...carried].sort((a, b) => b.score - a.score);
+  const slim = all.slice(0, config.opp.keep + carried.length);
   await writeJson('oportunidades.json', { updatedAt: nowIso, labels: OPP_LABEL, count: items.length, items: slim });
   return { total: items.length, strong: toNotify.length, sent };
 }
@@ -526,6 +559,15 @@ async function main() {
   st.runs = [run, ...(st.runs || []).filter((r) => r.results)].slice(0, 96);
 
   if (!DRY) {
+    // Ajustes y promos también se publican para que la web los muestre
+    for (const [file, name] of [[config.ajustesFile, 'ajustes.json'], [config.promosFile, 'promos.json']]) {
+      try {
+        await writeJson(name, JSON.parse(await fs.readFile(file, 'utf8')));
+      } catch (err) {
+        log.warn(`No pude publicar ${name}: ${err.message}`);
+      }
+    }
+    await checkBankPromos(db.state, notifySystem);
     await writeJson('retail.json', db.retail);
     await writeJson('state.json', db.state);
     await writeJson('sources.json', { updatedAt: nowIso, sources });

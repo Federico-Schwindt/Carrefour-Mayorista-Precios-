@@ -1,0 +1,26 @@
+{
+  "_ayuda": "Ajustes del monitor. Se pueden editar desde GitHub (botón del lápiz). Los porcentajes van como números enteros: 15 = 15%. Los cambios se aplican en la próxima lectura (cada 30 min).",
+
+  "precio_maximo_por_unidad": 40000,
+
+  "excluir_si_contiene": [
+    "cochecito", "coche paseo", "coche de paseo", "carrito de bebe", "travel system",
+    "butaca", "silla de auto", "silla para auto", "booster", "silla de comer", "silla alta", "sillita",
+    "colecho", "corralito", "practicuna", "moises", "colchon",
+    "andador", "mecedora", "hamaca", "gimnasio para bebe", "mochila portabebe", "portabebe",
+    "banera", "cambiador", "triciclo", "bicicleta", "monopatin", "pileta", "inflable"
+  ],
+
+  "minorista_rubros": [161, 222, 255, 292, 336, 347, 359, 402, 451, 471],
+
+  "avisos": {
+    "baja_fuerte_mayorista_pct": 15,
+    "baja_fuerte_minorista_pct": 30,
+    "posible_error_pct": 50,
+    "margen_reventa_pct": 35,
+    "oportunidad_descuento_pct": 50,
+    "oportunidad_entre_sucursales_pct": 35,
+    "oportunidad_minorista_mas_barato_pct": 40,
+    "maximo_avisos_por_lectura": 25
+  }
+}

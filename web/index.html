@@ -4,160 +4,158 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Radar Maxi</title>
-  <meta name="description" content="Alertas de precios de Carrefour Maxi: bajas, errores y margen de reventa.">
-  <meta name="theme-color" content="#0b4ea2">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📉</text></svg>">
+  <meta name="description" content="Precios de Carrefour Maxi y carrefour.com.ar: ofertas, bajas, errores de precio y margen de reventa.">
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121418" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Radar Maxi">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-180.png">
   <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500&display=swap">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body data-source="mayorista">
-  <header class="top">
-    <div class="top__row">
-      <div>
-        <h1>Radar Maxi</h1>
-        <div class="sub" id="branch">Carrefour Maxi</div>
+<body data-kind="mayorista" data-view="ofertas">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-tag" viewBox="0 0 24 24"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></symbol>
+      <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></symbol>
+      <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 2.8l2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3-4.6-4.4 6.3-.9z"/></symbol>
+      <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+      <symbol id="i-share" viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v13"/></symbol>
+      <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6M10 14L21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></symbol>
+      <symbol id="i-store" viewBox="0 0 24 24"><path d="M3 9l1.6-5h14.8L21 9M4 9v11h16V9M3 9h18M9 20v-6h6v6"/></symbol>
+      <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.2"/><circle cx="18" cy="20" r="1.2"/><path d="M2 3h3l2.7 12.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L21 7H6"/></symbol>
+      <symbol id="i-card" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/></symbol>
+      <symbol id="i-down" viewBox="0 0 24 24"><path d="M22 17l-8.5-8.5-5 5L2 7M16 17h6v-6"/></symbol>
+      <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></symbol>
+    </defs>
+  </svg>
+
+  <header class="appbar">
+    <div class="wrap appbar__row">
+      <div class="brand">
+        <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="8"/><path d="M9 21.5l5-5 3.5 3.5L23 12.5"/><path d="M18.5 12.5H23V17"/></svg>
+        <div class="brand__text">
+          <span class="brand__name">Radar Maxi</span>
+          <span class="brand__sub" id="subline">Cargando precios…</span>
+        </div>
       </div>
-      <button class="status" id="statusPill" type="button" data-tab="estado">
-        <span class="dot"></span><span id="statusText">Cargando…</span>
+      <button class="status" id="statusBtn" type="button" aria-label="Estado del monitor">
+        <span class="status__dot" aria-hidden="true"></span><span id="statusText">—</span>
       </button>
     </div>
-    <div class="sources" role="radiogroup" aria-label="Fuente de precios">
-      <button role="radio" data-source="mayorista" class="active" aria-checked="true">🏪 Mayorista <small>Maxi</small> <span class="badge" id="badgeMay"></span></button>
-      <button role="radio" data-source="minorista" aria-checked="false">🛒 Minorista <small>carrefour.com.ar</small> <span class="badge" id="badgeMin"></span></button>
+    <div class="wrap">
+      <div class="switch" role="group" aria-label="Fuente de precios">
+        <button type="button" class="switch__btn" data-kind="mayorista" aria-pressed="true"><svg class="ic"><use href="#i-store"/></svg>Mayorista<span class="switch__count" id="cntMay"></span></button>
+        <button type="button" class="switch__btn" data-kind="minorista" aria-pressed="false"><svg class="ic"><use href="#i-cart"/></svg>Minorista<span class="switch__count" id="cntMin"></span></button>
+      </div>
+      <div class="branches" id="branches" role="group" aria-label="Sucursal"></div>
     </div>
-    <div class="branches only-may" id="branches" role="radiogroup" aria-label="Sucursal"></div>
-    <nav class="tabs" role="tablist">
-      <button role="tab" data-tab="oportunidades" class="active">🔥 Oportunidades</button>
-      <button role="tab" data-tab="alertas">Alertas</button>
-      <button role="tab" data-tab="reventa" class="only-may">Reventa</button>
-      <button role="tab" data-tab="bajas">Bajas</button>
-      <button role="tab" data-tab="buscar">Buscar</button>
-      <button role="tab" data-tab="estado">Estado</button>
-    </nav>
   </header>
 
-  <main>
-    <div id="banner" class="banner" hidden></div>
+  <main class="wrap main" id="main">
+    <div class="notice" id="notice" role="status" hidden></div>
 
-    <!-- OPORTUNIDADES (no necesitan historial) -->
-    <section id="tab-oportunidades" class="tab active">
-      <p class="hint">Productos que <b>ya están baratos</b>, calculado en cada lectura sin esperar historial: descuento contra el precio tachado o de lista, diferencia entre sucursales, contra carrefour.com.ar y precio por kg/l contra su categoría.</p>
-      <div class="filters">
-        <div class="chips" id="oppChips">
-          <button class="chip active" data-sig="">Todas</button>
-          <button class="chip" data-sig="descuento">🏷️ Gran descuento</button>
-          <button class="chip only-may" data-sig="sucursal">🏪 Entre sucursales</button>
-          <button class="chip only-may" data-sig="reventa">💰 Reventa</button>
-          <button class="chip only-min" data-sig="bajoMayorista">🛒 Más barato que Maxi</button>
-          <button class="chip" data-sig="kilo">⚖️ Precio por kg</button>
-        </div>
-        <div class="row">
-          <input type="search" id="oppSearch" placeholder="Buscar…" autocomplete="off">
-          <select id="oppScope" class="only-may">
-            <option value="branch">Esta sucursal</option>
-            <option value="all">Todas las sucursales</option>
-          </select>
-        </div>
-        <div class="row"><button class="btn ghost small" id="dlOpp" type="button">⬇️ Descargar (CSV)</button><span class="count" id="oppCount"></span></div>
+    <!-- OFERTAS -->
+    <section class="view" id="view-ofertas" aria-labelledby="h-ofertas">
+      <h1 class="view__title" id="h-ofertas">Ofertas</h1>
+      <button class="today" id="todayCard" type="button" aria-label="Ver descuentos por día">
+        <span class="today__day" id="todayDay">Hoy</span>
+        <span class="today__text" id="todayText">Calculando descuentos del día…</span>
+        <span class="week" id="todayWeek" aria-hidden="true"></span>
+      </button>
+      <div class="chips" id="oppChips" role="group" aria-label="Tipo de oportunidad"></div>
+      <div class="toolbar">
+        <label class="field field--search"><svg class="ic"><use href="#i-search"/></svg><input id="oppSearch" aria-label="Filtrar ofertas" type="search" placeholder="Filtrar ofertas" autocomplete="off" enterkeyhint="search"></label>
+        <label class="field field--select"><span class="sr">Orden</span><select id="oppSort">
+          <option value="score">Mejores primero</option>
+          <option value="pct">Mayor porcentaje</option>
+          <option value="price">Menor precio</option>
+        </select></label>
       </div>
-      <div id="oppList" class="list"></div>
+      <p class="count" id="oppCount"></p>
+      <div class="list" id="oppList"></div>
     </section>
 
     <!-- ALERTAS -->
-    <section id="tab-alertas" class="tab">
-      <div class="filters">
-        <div class="chips" id="typeChips">
-          <button class="chip active" data-type="">Todas</button>
-          <button class="chip" data-type="error">🚨 Errores</button>
-          <button class="chip only-may" data-type="reventa">💰 Reventa</button>
-          <button class="chip" data-type="baja">📉 Bajas</button>
-          <button class="chip" data-type="minimo">🏆 Mínimos</button>
-        </div>
-        <div class="row">
-          <input type="search" id="alertSearch" placeholder="Buscar en alertas…" autocomplete="off">
-          <select id="alertRange">
-            <option value="24">Últimas 24 h</option>
-            <option value="72">Últimos 3 días</option>
-            <option value="168" selected>Última semana</option>
-            <option value="720">Último mes</option>
-            <option value="0">Todo</option>
-          </select>
-        </div>
+    <section class="view" id="view-alertas" aria-labelledby="h-alertas" hidden>
+      <h1 class="view__title" id="h-alertas">Alertas</h1>
+      <div class="chips" id="alertChips" role="group" aria-label="Tipo de alerta"></div>
+      <div class="toolbar">
+        <label class="field field--search"><svg class="ic"><use href="#i-search"/></svg><input id="alertSearch" aria-label="Filtrar alertas" type="search" placeholder="Filtrar alertas" autocomplete="off"></label>
+        <label class="field field--select"><span class="sr">Período</span><select id="alertRange">
+          <option value="24">Últimas 24 h</option>
+          <option value="72">3 días</option>
+          <option value="168" selected>7 días</option>
+          <option value="720">30 días</option>
+          <option value="0">Todo</option>
+        </select></label>
       </div>
-      <div id="alertList" class="list"></div>
-    </section>
-
-    <!-- REVENTA -->
-    <section id="tab-reventa" class="tab">
-      <p class="hint">Margen bruto comparando el precio mayorista con el de <b>carrefour.com.ar</b> (minorista). Los precios minoristas se actualizan de a tandas.</p>
-      <div class="filters">
-        <div class="row">
-          <label class="lbl">Margen mínimo <b id="marginVal">30%</b></label>
-          <input type="range" id="marginMin" min="0" max="150" step="5" value="30">
-        </div>
-        <div class="row">
-          <input type="search" id="resaleSearch" placeholder="Buscar producto…" autocomplete="off">
-          <select id="resaleSector"><option value="">Todas las secciones</option></select>
-        </div>
-      </div>
-      <div id="resaleList" class="list"></div>
-    </section>
-
-    <!-- BAJAS -->
-    <section id="tab-bajas" class="tab">
-      <div class="filters">
-        <div class="row">
-          <select id="dropWindow">
-            <option value="1">vs. hace 24 h</option>
-            <option value="7" selected>vs. hace 7 días</option>
-            <option value="30">vs. hace 30 días</option>
-            <option value="ref">vs. precio habitual</option>
-          </select>
-          <select id="dropSector"><option value="">Todas las secciones</option></select>
-        </div>
-      </div>
-      <div id="dropList" class="list"></div>
+      <p class="count" id="alertCount"></p>
+      <div class="list" id="alertList"></div>
     </section>
 
     <!-- BUSCAR -->
-    <section id="tab-buscar" class="tab">
-      <div class="filters">
-        <div class="row">
-          <input type="search" id="q" placeholder="Nombre, marca o código EAN…" autocomplete="off">
-        </div>
-        <div class="row">
-          <select id="searchSector"><option value="">Todas las secciones</option></select>
-          <select id="searchSort">
-            <option value="name">A-Z</option>
-            <option value="priceAsc">Precio ↑</option>
-            <option value="priceDesc">Precio ↓</option>
-            <option value="unit">Precio por kg/l ↑</option>
-            <option value="promo">En oferta primero</option>
-          </select>
-        </div>
+    <section class="view" id="view-buscar" aria-labelledby="h-buscar" hidden>
+      <h1 class="view__title" id="h-buscar">Buscar</h1>
+      <label class="field field--search field--big"><svg class="ic"><use href="#i-search"/></svg><input id="q" aria-label="Buscar productos" type="search" placeholder="Producto, marca o código de barras" autocomplete="off" enterkeyhint="search"></label>
+      <div class="toolbar">
+        <label class="field field--select"><span class="sr">Sección</span><select id="searchSector"><option value="">Todas las secciones</option></select></label>
+        <label class="field field--select"><span class="sr">Orden</span><select id="searchSort">
+          <option value="name">A–Z</option>
+          <option value="priceAsc">Menor precio</option>
+          <option value="priceDesc">Mayor precio</option>
+          <option value="unit">Menor precio por kg/l</option>
+          <option value="offer">Ofertas primero</option>
+          <option value="margin">Mayor margen de reventa</option>
+          <option value="drop">Bajaron en 7 días</option>
+        </select></label>
       </div>
-      <div class="row dl-row">
-        <button class="btn ghost small" id="dlList" type="button">⬇️ Lista de precios (CSV)</button>
-        <button class="btn ghost small" id="dlHistory" type="button">⬇️ Historial completo (CSV)</button>
-      </div>
-      <div id="searchCount" class="count"></div>
-      <div id="searchList" class="list"></div>
+      <p class="count" id="searchCount"></p>
+      <div class="list" id="searchList"></div>
     </section>
 
-    <!-- ESTADO -->
-    <section id="tab-estado" class="tab">
-      <div id="statusBox"></div>
+    <!-- FAVORITOS -->
+    <section class="view" id="view-favoritos" aria-labelledby="h-favoritos" hidden>
+      <h1 class="view__title" id="h-favoritos">Favoritos</h1>
+      <p class="lead">Guardá productos con la estrella para seguir su precio. Ves cuánto cambió desde que lo guardaste.</p>
+      <div class="list" id="favList"></div>
+    </section>
+
+    <!-- AJUSTES -->
+    <section class="view" id="view-ajustes" aria-labelledby="h-ajustes" hidden>
+      <h1 class="view__title" id="h-ajustes">Ajustes</h1>
+      <div id="settingsBox"></div>
     </section>
   </main>
 
-  <dialog id="detail">
-    <div class="sheet">
-      <button class="close" id="closeDetail" aria-label="Cerrar">✕</button>
-      <div id="detailBody"></div>
-    </div>
-  </dialog>
+  <nav class="tabbar" aria-label="Secciones">
+    <button type="button" class="tab" data-view="ofertas" aria-current="page"><svg class="ic"><use href="#i-tag"/></svg><span>Ofertas</span></button>
+    <button type="button" class="tab" data-view="alertas"><svg class="ic"><use href="#i-bell"/></svg><span>Alertas</span><i class="tab__dot" id="alertDot" hidden></i></button>
+    <button type="button" class="tab" data-view="buscar"><svg class="ic"><use href="#i-search"/></svg><span>Buscar</span></button>
+    <button type="button" class="tab" data-view="favoritos"><svg class="ic"><use href="#i-star"/></svg><span>Favoritos</span></button>
+    <button type="button" class="tab" data-view="ajustes"><svg class="ic"><use href="#i-sliders"/></svg><span>Ajustes</span></button>
+  </nav>
 
-  <template id="emptyTpl"><div class="empty">Nada por acá todavía.</div></template>
+  <div class="backdrop" id="backdrop" hidden></div>
+  <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden>
+    <div class="sheet__grab" aria-hidden="true"></div>
+    <button class="iconbtn sheet__close" id="sheetClose" type="button" aria-label="Cerrar"><svg class="ic"><use href="#i-x"/></svg></button>
+    <div class="sheet__body" id="sheetBody"></div>
+  </section>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
   <script src="app.js" type="module"></script>
 </body>
 </html>

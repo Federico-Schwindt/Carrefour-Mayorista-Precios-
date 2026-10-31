@@ -1,15 +1,16 @@
 {
-  "name": "Radar Maxi — alertas de precios",
+  "name": "Radar Maxi",
   "short_name": "Radar Maxi",
+  "description": "Ofertas, bajas y errores de precio de Carrefour Maxi y carrefour.com.ar",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#0b4ea2",
-  "theme_color": "#0b4ea2",
+  "background_color": "#F2F3F5",
+  "theme_color": "#FFFFFF",
+  "lang": "es-AR",
   "icons": [
-    {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230b4ea2'/><text x='50' y='68' font-size='56' text-anchor='middle'>📉</text></svg>",
-      "sizes": "any",
-      "type": "image/svg+xml"
-    }
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
   ]
 }

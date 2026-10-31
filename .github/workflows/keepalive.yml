@@ -4,7 +4,7 @@ name: Mantener sesión viva
 # sesiones no venzan por inactividad entre una lectura completa y la siguiente.
 on:
   schedule:
-    - cron: '5-55/10 * * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 permissions: {}

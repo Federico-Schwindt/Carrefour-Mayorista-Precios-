@@ -1,9 +1,21 @@
 // Configuración central. Todo se puede pisar con variables de entorno
 // (en GitHub Actions: Settings → Secrets and variables → Actions).
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+// ajustes.json (en la raíz del repo): ajustes en español que se pueden editar
+// desde GitHub. Las variables de entorno, si están, tienen prioridad.
+let AJ = {};
+try {
+  AJ = JSON.parse(fs.readFileSync(path.join(ROOT, 'ajustes.json'), 'utf8'));
+} catch {
+  AJ = {};
+}
+const AV = AJ.avisos || {};
+const pctOf = (v, def) => (Number.isFinite(Number(v)) ? Number(v) / 100 : def);
 
 const num = (name, def) => {
   const v = process.env[name];
@@ -61,9 +73,9 @@ export const config = {
   // ---- Reglas de alerta (porcentajes en 0..1) ----
   rules: {
     // Baja fuerte respecto del precio anterior
-    dropPct: num('ALERT_DROP_PCT', 0.15),
+    dropPct: num('ALERT_DROP_PCT', pctOf(AV.baja_fuerte_mayorista_pct, 0.15)),
     // Posible error: precio <= X * referencia (mediana 30 días)
-    errorRatio: num('ALERT_ERROR_RATIO', 0.5),
+    errorRatio: num('ALERT_ERROR_RATIO', 1 - pctOf(AV.posible_error_pct, 0.5)),
     // Posible error: precio <= X * precio minorista de carrefour.com.ar
     errorRetailRatio: num('ALERT_ERROR_RETAIL_RATIO', 0.45),
     // Posible error: precio <= X * precio de lista (tachado)
@@ -77,7 +89,7 @@ export const config = {
     minHistoryDays: num('ALERT_MIN_HISTORY_DAYS', 5),
     minVsMedianPct: num('ALERT_MIN_VS_MEDIAN_PCT', 0.08),
     // Reventa: margen bruto vs precio minorista >= X
-    resaleMargin: num('ALERT_RESALE_MARGIN', 0.35),
+    resaleMargin: num('ALERT_RESALE_MARGIN', pctOf(AV.margen_reventa_pct, 0.35)),
     // No alertar productos más baratos que esto (ruido)
     minPrice: num('ALERT_MIN_PRICE', 300),
     // Repetir alerta del mismo producto/tipo sólo pasado este tiempo o si baja X% más
@@ -100,11 +112,11 @@ export const config = {
     // 161 Almacén · 222 Desayuno · 255 Bebidas · 292 Lácteos · 336 Panadería · 347 Congelados
     // 359 Limpieza · 402 Perfumería · 451 Mundo Bebé · 471 Mascotas
     // Otros: 3 Electro y tecnología · 71 Hogar · 605 Juguetería · 635 Automotor · 665 Aire libre
-    categories: str('MIN_CATEGORIES', '161,222,255,292,336,347,359,402,451,471').split(',').map((s) => s.trim()).filter(Boolean),
+    categories: str('MIN_CATEGORIES', (AJ.minorista_rubros || [161, 222, 255, 292, 336, 347, 359, 402, 451, 471]).join(',')).split(',').map((s) => s.trim()).filter(Boolean),
     concurrency: num('MIN_CONCURRENCY', 3),
     delayMs: num('MIN_DELAY_MS', 250),
     // En minorista hay muchas promos: umbral de "baja fuerte" más alto
-    dropPct: num('MIN_ALERT_DROP_PCT', 0.3),
+    dropPct: num('MIN_ALERT_DROP_PCT', pctOf(AV.baja_fuerte_minorista_pct, 0.3)),
     maxPerRun: num('MIN_NOTIFY_MAX_PER_RUN', 15),
     types: str('MIN_NOTIFY_TYPES', 'error,baja,minimo').split(',').map((s) => s.trim()),
   },
@@ -122,7 +134,7 @@ export const config = {
     ntfyTopic: str('NTFY_TOPIC'),
     ntfyServer: str('NTFY_SERVER', 'https://ntfy.sh'),
     discordWebhook: str('DISCORD_WEBHOOK_URL'),
-    maxPerRun: num('NOTIFY_MAX_PER_RUN', 25),
+    maxPerRun: num('NOTIFY_MAX_PER_RUN', Number(AV.maximo_avisos_por_lectura) || 25),
     // Tipos que generan notificación push (el resto sólo aparece en la web)
     types: str('NOTIFY_TYPES', 'error,reventa,baja,minimo').split(',').map((s) => s.trim()),
   },
@@ -140,11 +152,11 @@ export const config = {
     },
     // Para mandar aviso push (una sola vez por producto, salvo que baje más)
     notify: {
-      descuento: num('OPP_NOTIFY_DESCUENTO', 0.5), // mayorista vs tachado
+      descuento: num('OPP_NOTIFY_DESCUENTO', pctOf(AV.oportunidad_descuento_pct, 0.5)), // mayorista vs tachado
       descuentoMinorista: num('OPP_NOTIFY_DESCUENTO_MIN', 0.6), // minorista vs lista (suelen inflarla)
-      sucursal: num('OPP_NOTIFY_SUCURSAL', 0.35),
+      sucursal: num('OPP_NOTIFY_SUCURSAL', pctOf(AV.oportunidad_entre_sucursales_pct, 0.35)),
       reventa: num('OPP_NOTIFY_REVENTA', 1.5),
-      bajoMayorista: num('OPP_NOTIFY_BAJO_MAYORISTA', 0.4),
+      bajoMayorista: num('OPP_NOTIFY_BAJO_MAYORISTA', pctOf(AV.oportunidad_minorista_mas_barato_pct, 0.4)),
       // Comparar por kg entre marcas distintas da falsas alarmas: sólo en la web (0 = sin aviso)
       kilo: num('OPP_NOTIFY_KILO', 0),
     },
@@ -156,6 +168,14 @@ export const config = {
     repeatDays: num('OPP_REPEAT_DAYS', 7),
     keep: num('OPP_KEEP', 1500),
   },
+
+  // ---- Productos que no se siguen (caros o que no interesan) ----
+  filters: {
+    maxUnitPrice: num('MAX_UNIT_PRICE', Number(AJ.precio_maximo_por_unidad) || 40000),
+    excludeWords: (process.env.EXCLUDE_WORDS ? process.env.EXCLUDE_WORDS.split(',') : AJ.excluir_si_contiene || []).map((w) => w.trim()).filter(Boolean),
+  },
+  ajustesFile: path.join(ROOT, 'ajustes.json'),
+  promosFile: path.join(ROOT, 'promos.json'),
 
   historyKeepDays: num('HISTORY_KEEP_DAYS', 400),
   alertsKeep: num('ALERTS_KEEP', 1500),

@@ -57,6 +57,8 @@ export function seriesStats(series = [], nowMin) {
 /** Cantidad comparable (sólo kg o l; nunca "unidades", que no son comparables entre sí) */
 export function unitQty(p, multipack = true) {
   if (NON_UNIT_SECTORS.test(p.sector || '')) return null;
+  // carrefour.com.ar informa el precio oficial por kg/l: es más confiable que leer el nombre
+  if (p.unitPrice > 0 && (p.unit === 'kg' || p.unit === 'l') && p.price > 0) return { qty: p.price / p.unitPrice, unit: p.unit };
   const q = parseQuantity(p.name, { multipack });
   return q && q.unit !== 'u' && q.qty > 0 ? q : null;
 }

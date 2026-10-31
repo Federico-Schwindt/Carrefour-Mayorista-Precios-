@@ -1,89 +1,77 @@
-// Radar Maxi — dashboard estático. Lee los JSON de ./data/ que genera el monitor.
-// Fuentes SEPARADAS: 🏪 mayorista (una por sucursal Maxi) y 🛒 minorista (carrefour.com.ar).
+// Radar Maxi — web estática. Lee los JSON de ./data/ que genera el monitor.
+// Fuentes separadas: mayorista (una por sucursal Maxi) y minorista (carrefour.com.ar).
 const DATA = './data/';
-const PAGE = 60;
-const TYPE_LABEL = { error: '🚨 Posible error', oportunidad: '🔥 Oportunidad', reventa: '💰 Reventa', baja: '📉 Baja fuerte', minimo: '🏆 Mínimo histórico' };
-const SIG_LABEL = { descuento: '🏷️ Descuento', sucursal: '🏪 Entre sucursales', reventa: '💰 Reventa', bajoMayorista: '🛒 Más barato que Maxi', kilo: '⚖️ Precio por kg' };
 const MAXI = 'https://comerciante.carrefour.com.ar/';
+const CHUNK = 40;
+const TZ = 'America/Argentina/Buenos_Aires';
+const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const DAYS_FULL = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const SIG = {
+  descuento: { label: 'Descuento', tag: 'drop', sign: '−' },
+  sucursal: { label: 'Más barato que otra sucursal', short: 'Entre sucursales', tag: 'may', sign: '−' },
+  reventa: { label: 'Margen de reventa', short: 'Reventa', tag: 'good', sign: '+' },
+  bajoMayorista: { label: 'Más barato que en Maxi', short: 'Más barato que Maxi', tag: 'min', sign: '−' },
+  kilo: { label: 'Precio por kg bajo', short: 'Por kg', tag: 'warn', sign: '−' },
+  bajas: { label: 'Bajaron en 7 días', short: 'Bajaron', tag: 'drop', sign: '−' },
+};
+const TYPE = {
+  error: { label: 'Posible error', tag: 'drop' },
+  oportunidad: { label: 'Oportunidad', tag: 'offer' },
+  reventa: { label: 'Reventa', tag: 'good' },
+  baja: { label: 'Baja fuerte', tag: 'drop' },
+  minimo: { label: 'Mínimo histórico', tag: 'may' },
+};
 const LEGACY = [
   { id: 'may-legacy', kind: 'mayorista', name: 'Carrefour Maxi', files: { products: 'products.json', alerts: 'alerts.json', history: 'history.json' } },
   { id: 'min', kind: 'minorista', name: 'carrefour.com.ar', files: { products: 'min-products.json', alerts: 'min-alerts.json', history: 'min-history.json' } },
 ];
 
-const blank = () => ({ products: [], byEan: new Map(), alerts: [], history: null, loaded: false, updatedAt: null });
-const S = {
-  manifest: [],
-  data: {},
-  kind: 'mayorista',
-  branch: null,
-  status: null,
-  retail: null,
-  opp: null,
-  tab: 'oportunidades',
-  alertType: '',
-  oppSig: '',
-  limits: { oportunidades: PAGE, alertas: PAGE, reventa: PAGE, bajas: PAGE, buscar: PAGE },
+// ---------- almacenamiento local (sólo comodidades de este navegador) ----------
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sin almacenamiento */ } },
 };
+const DEFAULTS = {
+  theme: 'system',
+  medios: { prepaga: true, credito: false, anses: false },
+  maxPrice: 40000,
+  hidden: { mayorista: [], minorista: [] },
+  hideUnseen: true,
+  maxMinQty: 0,
+  oppMinPct: 30,
+  oppMinMargin: 35,
+  kind: '',
+  branch: '',
+  view: 'ofertas',
+};
+const SET = { ...DEFAULTS, ...store.get('radar.settings', {}) };
+SET.medios = { ...DEFAULTS.medios, ...(SET.medios || {}) };
+SET.hidden = { mayorista: [], minorista: [], ...(SET.hidden || {}) };
+const saveSettings = () => store.set('radar.settings', SET);
+let FAVS = store.get('radar.favs', {});
+const saveFavs = () => store.set('radar.favs', FAVS);
+
+// ---------- estado ----------
+const blank = () => ({ products: [], byEan: new Map(), alerts: [], history: null, loaded: false, updatedAt: null });
+const S = { manifest: [], data: {}, status: null, opp: null, retail: null, promos: null, ajustes: null, oppSig: '', alertType: '' };
 const srcOf = (id) => S.manifest.find((s) => s.id === id);
 const mayList = () => S.manifest.filter((s) => s.kind === 'mayorista');
 const minSrc = () => S.manifest.find((s) => s.kind === 'minorista');
-const curId = () => (S.kind === 'minorista' ? minSrc()?.id : S.branch);
+const kindOf = (id) => srcOf(id)?.kind || (id === 'min' ? 'minorista' : 'mayorista');
+const curId = () => (SET.kind === 'minorista' ? minSrc()?.id : SET.branch);
 const dataOf = (id) => S.data[id] || (S.data[id] = blank());
 const D = () => dataOf(curId());
 
 // ---------- utilidades ----------
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const ars = (n) => (n || n === 0 ? '$' + Number(n).toLocaleString('es-AR', { maximumFractionDigits: Number(n) < 100 ? 2 : 0 }) : '—');
+const fmt = (n, d = 0) => Number(n).toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d });
+const ars = (n) => (n || n === 0 ? `$${fmt(Math.round(n))}` : '—');
 const pct = (x) => `${Math.round(x * 100)}%`;
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-const title = (s) => String(s || '').toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
-const NOIMG = 'https://tupedido.carrefour.com.ar/imagenesPDA/noimage-svg.svg';
-// Fotos del minorista: se piden achicadas (240 px) para que carguen rápido en el celular
-const fullImg = (x) => {
-  if (!x) return null;
-  const u = /^https?:/.test(x) ? x : `https://carrefourar.vteximg.com.br/arquivos/ids/${x}`;
-  return u.replace(/(vteximg\.com\.br\/arquivos\/ids\/)(\d+)\//, '$1$2-240-240/');
-};
-const fullUrl = (x) => (!x ? null : /^https?:/.test(x) ? x : `https://www.carrefour.com.ar/${x}/p`);
-const kindOf = (id) => srcOf(id)?.kind || (id === 'min' ? 'minorista' : 'mayorista');
-const imgOf = (p, id = curId()) => fullImg(p.im || p.image) || (kindOf(id) === 'mayorista' && /^\d+$/.test(p.ean) ? `https://tupedido.carrefour.com.ar/imagenesPDA/${p.ean}.jpg` : NOIMG);
-const linkOf = (p, id = curId()) => (kindOf(id) === 'minorista' ? fullUrl(p.u || p.url) || 'https://www.carrefour.com.ar/' : `${MAXI}p/${p.ean}`);
-// Imágenes con respaldo: si una no carga (bloqueo del navegador, CDN caído, foto inexistente)
-// prueba la foto del minorista para el mismo EAN y después un servidor de imágenes alternativo.
-const proxyImg = (u) => `https://wsrv.nl/?url=${encodeURIComponent(u.replace(/^https?:\/\//, ''))}&w=240&h=240&fit=contain&bg=white&output=jpg`;
-function imgCandidates(p, id) {
-  const first = imgOf(p, id);
-  const list = [first];
-  const minP = kindOf(id) === 'mayorista' ? S.data[minSrc()?.id]?.byEan?.get(p.ean) : null;
-  if (minP?.im) list.push(fullImg(minP.im));
-  if (first !== NOIMG) list.push(proxyImg(first));
-  return [...new Set(list)];
-}
-function imgTag(p, id, lazy = true) {
-  const [src, ...rest] = imgCandidates(p, id);
-  return `<img${lazy ? ' loading="lazy"' : ''} decoding="async" referrerpolicy="no-referrer" src="${esc(src)}" data-fb="${esc(rest.map(encodeURIComponent).join('|'))}" onerror="imgFb(this)" alt="">`;
-}
-window.imgFb = (el) => {
-  const list = (el.dataset.fb || '').split('|').filter(Boolean);
-  const next = list.shift();
-  el.dataset.fb = list.join('|');
-  if (next) el.src = decodeURIComponent(next);
-  else {
-    el.onerror = null;
-    el.src = NOIMG;
-  }
-};
-const unseen = (p) => p.l && D().updatedAt && Date.parse(p.l) < Date.parse(D().updatedAt) - 3600e3;
-function srcBadge(id = curId()) {
-  const s = srcOf(id);
-  if (kindOf(id) === 'minorista') return '<span class="src min">MINORISTA</span>';
-  return `<span class="src may">MAYORISTA${s && mayList().length > 1 ? ` · ${esc(title(s.name))}` : ''}</span>`;
-}
-const store = {
-  get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
-  set(k, v) { try { localStorage.setItem(k, v); } catch { /* sin storage */ } },
-};
+const title = (s) => String(s || '').toLowerCase().replace(/(^|[\s(-])\S/g, (c) => c.toUpperCase());
+const icon = (id, cls = 'ic') => `<svg class="${cls}" aria-hidden="true"><use href="#i-${id}"/></svg>`;
+const NOIMG = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#F2F3F5"/><path d="M22 40l8-9 6 6 6-8 6 11z" fill="#C7CCD3"/><circle cx="25" cy="25" r="4" fill="#C7CCD3"/></svg>');
 function ago(ts) {
   if (!ts) return '—';
   const m = Math.round((Date.now() - Date.parse(ts)) / 60000);
@@ -93,62 +81,240 @@ function ago(ts) {
   if (h < 48) return `hace ${h} h`;
   return `hace ${Math.round(h / 24)} días`;
 }
-const fmtDate = (d) => new Date(d).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-const fmtDateFull = (d) => new Date(d).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-
+const fmtDate = (d, withYear = false) => new Date(d).toLocaleString('es-AR', { timeZone: TZ, day: '2-digit', month: '2-digit', ...(withYear ? { year: 'numeric' } : {}), hour: '2-digit', minute: '2-digit' });
+function todayAR(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' }).formatToParts(date);
+  const g = (t) => parts.find((p) => p.type === t)?.value;
+  return { iso: `${g('year')}-${g('month')}-${g('day')}`, dow: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(g('weekday')) };
+}
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.hidden = false;
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => (t.hidden = true), 2600);
+}
 async function getJson(name) {
   const r = await fetch(`${DATA}${name}?t=${Math.floor(Date.now() / 60000)}`, { cache: 'no-store' });
   if (!r.ok) throw new Error(`${name}: ${r.status}`);
   return r.json();
 }
+const repo = (() => {
+  const owner = location.hostname.endsWith('github.io') ? location.hostname.split('.')[0] : 'kiwiplusapp';
+  const name = location.hostname.endsWith('github.io') ? location.pathname.split('/')[1] : 'Carrefour-Mayorista-Precios-';
+  return `https://github.com/${owner}/${name}`;
+})();
 
-// ---------- CSV (se abre en Excel: separador ";" y coma decimal) ----------
-const csvNum = (n) => (n === null || n === undefined || n === '' ? '' : String(Math.round(Number(n) * 100) / 100).replace('.', ','));
-const csvCell = (v) => {
-  const s = String(v ?? '');
-  return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+// ---------- imágenes con respaldo ----------
+const fullImg = (x) => {
+  if (!x) return null;
+  const u = /^https?:/.test(x) ? x : `https://carrefourar.vteximg.com.br/arquivos/ids/${x}`;
+  return u.replace(/(vteximg\.com\.br\/arquivos\/ids\/)(\d+)\//, '$1$2-240-240/');
 };
-function downloadCsv(filename, header, rows) {
-  const text = '﻿' + [header, ...rows].map((r) => r.map(csvCell).join(';')).join('\r\n');
-  const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+const fullUrl = (x) => (!x ? null : /^https?:/.test(x) ? x : `https://www.carrefour.com.ar/${x}/p`);
+const proxyImg = (u) => `https://wsrv.nl/?url=${encodeURIComponent(u.replace(/^https?:\/\//, ''))}&w=240&h=240&fit=contain&bg=white&output=jpg`;
+function imgCandidates(v) {
+  const list = [];
+  const own = fullImg(v.im);
+  if (own) list.push(own);
+  if (v.kind === 'mayorista' && /^\d+$/.test(v.ean)) list.push(`https://tupedido.carrefour.com.ar/imagenesPDA/${v.ean}.jpg`);
+  const alt = v.kind === 'mayorista' ? S.data[minSrc()?.id]?.byEan?.get(v.ean) : null;
+  if (alt?.im) list.push(fullImg(alt.im));
+  if (list[0]) list.push(proxyImg(list[0]));
+  return [...new Set(list)];
 }
-const today = () => new Date().toISOString().slice(0, 10);
-const srcFileTag = (id) => (kindOf(id) === 'minorista' ? 'minorista' : `mayorista-${(srcOf(id)?.name || 'maxi').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
-function historyRows(series, nowPrice) {
-  const rows = [];
-  for (let i = 0; i < series.length; i++) {
-    const [t, price, base] = series[i];
-    const next = series[i + 1];
-    rows.push([fmtDateFull(t * 60000), next ? fmtDateFull(next[0] * 60000) : 'hoy', csvNum(price), csvNum(base ?? '')]);
-  }
-  if (!series.length && nowPrice) rows.push([fmtDateFull(Date.now()), 'hoy', csvNum(nowPrice), '']);
-  return rows;
+function imgTag(v, cls, lazy = true) {
+  const [src, ...rest] = imgCandidates(v);
+  return `<img class="${cls}"${lazy ? ' loading="lazy"' : ''} decoding="async" referrerpolicy="no-referrer" src="${esc(src || NOIMG)}" data-fb="${esc(rest.map(encodeURIComponent).join('|'))}" alt="">`;
 }
+document.addEventListener('error', (e) => {
+  const el = e.target;
+  if (el.tagName !== 'IMG' || !('fb' in el.dataset)) return;
+  const list = el.dataset.fb.split('|').filter(Boolean);
+  const next = list.shift();
+  el.dataset.fb = list.join('|');
+  el.src = next ? decodeURIComponent(next) : NOIMG;
+  if (!next) delete el.dataset.fb;
+}, true);
 
-// Unidad (kg/l/u) desde la descripción — misma lógica que el monitor
-function parseQty(desc, multipack = true) {
+// ---------- cantidades y precio por kg ----------
+function parseQty(desc, multipack) {
   const d = ` ${String(desc || '').toLowerCase().replace(/,/g, '.')} `;
   const U = '(kgs?|kilos?|k|grs?|grm|gramos?|g|ml|cc|cm3|lts?|litros?|l)';
   const n2 = (n, u) => (/^(kgs?|kilos?|k)$/.test(u) ? { q: n, u: 'kg' } : /^(grs?|grm|gramos?|g)$/.test(u) ? { q: n / 1000, u: 'kg' } : /^(ml|cc|cm3)$/.test(u) ? { q: n / 1000, u: 'l' } : { q: n, u: 'l' });
-  let m = d.match(new RegExp(`(?<![\\w.])(\\d+)\\s*(?:u\\.?|un\\.?|unid\\.?|unidades)?\\s*x\\s*(\\d+(?:\\.\\d+)?)\\s*${U}\\b`));
-  if (m && !multipack) return n2(+m[2], m[3]); // en Maxi el precio es por unidad aunque diga "12 x 90 grs"
+  const m = d.match(new RegExp(`(?<![\\w.])(\\d+)\\s*(?:u\\.?|un\\.?|unid\\.?|unidades)?\\s*x\\s*(\\d+(?:\\.\\d+)?)\\s*${U}\\b`));
+  if (m && !multipack) return n2(+m[2], m[3]);
   if (m && +m[1] > 1 && +m[1] <= 200) { const b = n2(+m[2], m[3]); return { q: b.q * +m[1], u: b.u }; }
   const all = [...d.matchAll(new RegExp(`(\\d+(?:\\.\\d+)?)\\s*${U}(?![a-z])`, 'g'))];
   if (all.length) { const l = all[all.length - 1]; const r = n2(+l[1], l[2]); if (r.q > 0) return r; }
-  m = d.match(/(?:x\s*)?(?<![\w.])(\d+)\s*(?:u|un|uni|unid|unidades|rollos|saquitos|sobres)\b/);
-  return m && +m[1] > 0 ? { q: +m[1], u: 'u' } : null;
+  return null;
 }
 const NON_UNIT = /electro|tecnolog|hogar|indumentaria|jugueter|librer|automotor|aire libre|beb[eé]|bazar|textil/i;
-function unitOf(p, id = curId()) {
-  if (NON_UNIT.test(p.s || '')) return null;
-  const q = parseQty(p.n, kindOf(id) !== 'mayorista');
-  return q && q.u !== 'u' && q.q > 0 ? q : null;
+function unitPrice(v) {
+  if (v.up && v.uu) return { price: v.up, u: v.uu };
+  if (NON_UNIT.test(v.sector || '')) return null;
+  const q = parseQty(v.name, v.kind !== 'mayorista');
+  return q && q.q > 0 ? { price: v.price / q.q, u: q.u } : null;
+}
+
+// ---------- modelo de producto para mostrar ----------
+function vm(p, id) {
+  const price = p.e ?? p.p;
+  return {
+    id, kind: kindOf(id), ean: p.ean, name: p.n, sector: p.s, section: p.sc, category: p.c, price,
+    was: p.pp && p.p > p.pp ? p.p : p.lp && p.lp > price ? p.lp : null,
+    promo: p.pr || null, minQty: p.q || null, pack: p.pk || null, lim: p.lim || null, seller: p.sl || null,
+    up: p.up || null, uu: p.uu || null, im: p.im || null, u: p.u || null, l: p.l || null, f: p.f || null,
+  };
+}
+function vmFrom(item, id) {
+  const p = dataOf(id).byEan.get(item.ean);
+  if (p) return vm(p, id);
+  return vm({ ean: item.ean, n: item.name, s: item.sector, c: item.category, e: item.price, p: item.basePrice || item.price, lp: item.listPrice, pr: item.promo, q: item.minQty, u: item.url, im: item.image, sl: item.seller }, id);
+}
+const unseen = (v) => v.l && dataOf(v.id).updatedAt && Date.parse(v.l) < Date.parse(dataOf(v.id).updatedAt) - 3600e3;
+function passes(v) {
+  if (SET.maxPrice && v.price > SET.maxPrice) return false;
+  if ((SET.hidden[v.kind] || []).includes(v.sector)) return false;
+  if (SET.hideUnseen && unseen(v)) return false;
+  if (SET.maxMinQty && v.minQty > SET.maxMinQty) return false;
+  return true;
+}
+
+// ---------- descuentos por día (promos.json + medios de pago elegidos) ----------
+function activePromos(kind, dow, iso = todayAR().iso) {
+  return (S.promos?.promos || []).filter((pr) => SET.medios[pr.medio] && pr.fuentes?.includes(kind) && pr.dias?.includes(dow) && (!pr.desde || iso >= pr.desde) && (!pr.hasta || iso <= pr.hasta));
+}
+function promoFor(v) {
+  const { iso, dow } = todayAR();
+  const text = `${v.sector || ''} ${v.section || ''} ${v.category || ''}`;
+  const hasOffer = Boolean(v.promo || v.was);
+  let best = null;
+  for (const pr of activePromos(v.kind, dow, iso)) {
+    if (pr.excluye_rubros && new RegExp(pr.excluye_rubros, 'i').test(text)) continue;
+    if (pr.excluye_promos && v.promo && new RegExp(pr.excluye_promos, 'i').test(v.promo)) continue;
+    if (pr.excluye_marketplace && v.seller) continue;
+    if (!pr.acumulable && hasOffer) continue;
+    if (!best || pr.pct > best.pct) best = pr;
+  }
+  return best;
+}
+const medioName = (m) => S.promos?.medios?.[m] || m;
+
+// ---------- piezas de interfaz ----------
+function priceHtml(n, { big = false, cu = true } = {}) {
+  if (!n && n !== 0) return '<span class="price">—</span>';
+  const r = Math.round(n * 100) / 100;
+  const ent = Math.floor(r);
+  const cents = Math.round((r - ent) * 100);
+  return `<span class="price${big ? ' price--lg' : ''}"><span class="cur">$</span>${fmt(ent)}${cents ? `<sup>${String(cents).padStart(2, '0')}</sup>` : ''}${cu ? '<span class="cu">c/u</span>' : ''}</span>`;
+}
+function srcLabel(id) {
+  const s = srcOf(id);
+  if (kindOf(id) === 'minorista') return '<span class="src src--min">carrefour.com.ar</span>';
+  return `<span class="src src--may">Maxi ${esc(title(s?.name || ''))}</span>`;
+}
+function subLine(v) {
+  const u = unitPrice(v);
+  const parts = [];
+  if (u) parts.push(`${ars(u.price)}/${u.u}`);
+  if (v.minQty) parts.push(`mín. ${v.minQty} u.`);
+  if (v.lim) parts.push(`máx. ${v.lim} u.`);
+  if (v.pack) parts.push(`bulto ${v.pack}`);
+  return parts.length ? `<div class="row__sub">${parts.map((x) => `<span>${x}</span>`).join('')}</div>` : '';
+}
+const starBtn = (v) => {
+  const on = Boolean(FAVS[`${v.id}|${v.ean}`]);
+  return `<button type="button" class="iconbtn star row__star" data-fav="${esc(v.id)}|${esc(v.ean)}" aria-pressed="${on}" aria-label="${on ? 'Quitar de favoritos' : 'Guardar en favoritos'}">${icon('star')}</button>`;
+};
+function rowHtml(v, { tags = [], reasons = [], pctTag = '', note = '' } = {}) {
+  const pr = promoFor(v);
+  const today = pr ? `<span class="today-price">${icon('card')}Hoy con ${pr.medio === 'prepaga' ? 'Prepaga' : 'tarjeta'}: ${ars(v.price * (1 - pr.pct / 100))}</span>` : '';
+  const all = [...(v.promo ? [`<span class="tag tag--offer">${esc(v.promo)}</span>`] : []), ...tags, ...(unseen(v) ? [`<span class="tag tag--plain">No visto ${ago(v.l)}</span>`] : [])];
+  return `<div class="row" data-open="${esc(v.id)}|${esc(v.ean)}">
+    ${imgTag(v, 'row__img')}
+    <div class="row__body">
+      <div class="row__meta">${srcLabel(v.id)}<span>${esc(v.category || v.section || '')}</span></div>
+      <button type="button" class="row__open"><span class="row__name">${esc(v.name)}</span></button>
+      <div class="row__priceline">${priceHtml(v.price, { cu: v.kind === 'mayorista' })}${v.was ? `<span class="was">${ars(v.was)}</span>` : ''}${pctTag}</div>
+      ${subLine(v)}
+      ${all.length ? `<div class="row__tags">${all.join('')}</div>` : ''}
+      ${today}
+      ${reasons.length ? `<ul class="row__why">${reasons.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
+      ${note}
+    </div>
+    ${starBtn(v)}
+  </div>`;
+}
+const emptyHtml = (ic, head, text) => `<div class="empty">${icon(ic)}<b>${esc(head)}</b><p>${text}</p></div>`;
+
+// Lista infinita: dibuja de a 40 y sigue al llegar al final
+const io = 'IntersectionObserver' in window ? new IntersectionObserver((entries) => {
+  for (const e of entries) if (e.isIntersecting) appendMore(e.target.parentElement);
+}, { rootMargin: '600px' }) : null;
+function mountList(el, items, render, empty) {
+  el._items = items;
+  el._render = render;
+  el._n = 0;
+  el.innerHTML = '';
+  const next = el.nextElementSibling;
+  if (next?.classList.contains('empty')) next.remove();
+  if (!items.length) {
+    el.hidden = true;
+    el.insertAdjacentHTML('afterend', empty);
+    return;
+  }
+  el.hidden = false;
+  appendMore(el);
+}
+function appendMore(el) {
+  if (!el._items) return;
+  el.querySelector('.more')?.remove();
+  const chunk = el._items.slice(el._n, el._n + CHUNK);
+  el.insertAdjacentHTML('beforeend', chunk.map(el._render).join(''));
+  el._n += chunk.length;
+  if (el._n < el._items.length) {
+    el.insertAdjacentHTML('beforeend', `<div class="more">Mostrando ${fmt(el._n)} de ${fmt(el._items.length)}</div>`);
+    const s = el.querySelector('.more');
+    if (io) io.observe(s);
+    else s.addEventListener('click', () => appendMore(el));
+  }
+}
+
+// ---------- carga de datos ----------
+async function loadSource(id) {
+  const s = srcOf(id);
+  const d = dataOf(id);
+  if (!s) return d;
+  const [products, alerts] = await Promise.allSettled([getJson(s.files.products), getJson(s.files.alerts)]);
+  d.products = products.value?.items || [];
+  d.byEan = new Map(d.products.map((p) => [p.ean, p]));
+  d.updatedAt = products.value?.updatedAt || null;
+  d.alerts = (alerts.value?.alerts || []).map((a) => ({ ...a, sourceId: a.sourceId || id }));
+  d.loaded = true;
+  return d;
+}
+async function ensureHistory(id = curId()) {
+  const d = dataOf(id);
+  if (!d.history) { try { d.history = await getJson(srcOf(id).files.history); } catch { d.history = {}; } }
+  return d.history;
+}
+async function ensureRetail() {
+  if (!S.retail) { try { S.retail = await getJson('retail.json'); } catch { S.retail = {}; } }
+  return S.retail;
+}
+async function loadAll() {
+  const [status, manifest, opp, promos, ajustes] = await Promise.allSettled([getJson('status.json'), getJson('sources.json'), getJson('oportunidades.json'), getJson('promos.json'), getJson('ajustes.json')]);
+  S.status = status.value || null;
+  S.manifest = manifest.value?.sources?.length ? manifest.value.sources : LEGACY;
+  S.opp = opp.value || { items: [] };
+  S.promos = promos.value || { promos: [] };
+  S.ajustes = ajustes.value || null;
+  S.data = {};
+  await Promise.all(S.manifest.map((s) => loadSource(s.id)));
+  if (!SET.branch || !srcOf(SET.branch)) SET.branch = mayList()[0]?.id || '';
+  if (!SET.kind) SET.kind = mayList().length && D().products.length ? 'mayorista' : 'minorista';
+  if (SET.kind === 'mayorista' && !mayList().length) SET.kind = 'minorista';
 }
 
 // ---------- historial ----------
@@ -175,578 +341,670 @@ function refPrice(series) {
   return median(out);
 }
 
-// ---------- carga ----------
-async function loadSource(id) {
-  const s = srcOf(id);
-  const d = dataOf(id);
-  if (!s) return d;
-  const [products, alerts] = await Promise.allSettled([getJson(s.files.products), getJson(s.files.alerts)]);
-  d.products = products.value?.items || [];
-  d.byEan = new Map(d.products.map((p) => [p.ean, p]));
-  d.updatedAt = products.value?.updatedAt || null;
-  d.alerts = (alerts.value?.alerts || []).map((a) => ({ ...a, source: a.source || s.kind, sourceId: a.sourceId || id }));
-  d.loaded = true;
-  return d;
+// ---------- encabezado, fuente y sucursal ----------
+function renderHeader() {
+  document.body.dataset.kind = SET.kind;
+  document.querySelectorAll('.switch__btn').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.kind === SET.kind)));
+  const day = (kind) => S.manifest.filter((s) => s.kind === kind).reduce((n, s) => n + dataOf(s.id).alerts.filter((a) => Date.parse(a.ts) > Date.now() - 864e5).length, 0);
+  $('#cntMay').textContent = day('mayorista') || '';
+  $('#cntMin').textContent = day('minorista') || '';
+  $('#alertDot').hidden = !D().alerts.some((a) => Date.parse(a.ts) > Date.now() - 864e5);
+  const list = mayList();
+  $('#branches').innerHTML = SET.kind === 'mayorista' && list.length > 1
+    ? list.map((s) => {
+        const bad = S.status?.sources?.[s.id]?.ok === false;
+        return `<button type="button" class="branch" data-branch="${esc(s.id)}" aria-pressed="${s.id === SET.branch}">${esc(title(s.name))}${bad ? '<i class="warn" aria-label="con problemas"></i>' : ''}</button>`;
+      }).join('')
+    : '';
+  const st = S.status?.sources?.[curId()];
+  const n = st?.products ? ` · ${fmt(st.products)} productos` : '';
+  $('#subline').textContent = SET.kind === 'mayorista' ? `Maxi ${title(srcOf(SET.branch)?.name || '')}${n}` : `carrefour.com.ar${n}`;
+  const btn = $('#statusBtn');
+  btn.classList.remove('is-ok', 'is-warn', 'is-bad');
+  if (!st?.lastSuccess) {
+    btn.classList.add('is-bad');
+    $('#statusText').textContent = 'Sin datos';
+  } else {
+    const mins = (Date.now() - Date.parse(st.lastSuccess)) / 60000;
+    const iv = S.status.intervalMinutes || 30;
+    btn.classList.add(!st.ok || mins > iv * 6 ? 'is-bad' : mins > iv * 2.5 ? 'is-warn' : 'is-ok');
+    $('#statusText').textContent = ago(st.lastSuccess);
+  }
+  renderNotice();
 }
-async function ensureHistory(id = curId()) {
-  const d = dataOf(id);
-  if (!d.history) { try { d.history = await getJson(srcOf(id).files.history); } catch { d.history = {}; } }
-  return d.history;
-}
-async function ensureRetail() {
-  if (!S.retail) { try { S.retail = await getJson('retail.json'); } catch { S.retail = {}; } }
-  return S.retail;
-}
-async function ensureAllProducts() {
-  await Promise.all(S.manifest.filter((s) => !dataOf(s.id).loaded).map((s) => loadSource(s.id)));
-}
-
-async function loadAll() {
-  try { S.status = await getJson('status.json'); } catch { S.status = null; }
-  try { S.manifest = (await getJson('sources.json')).sources || []; } catch { S.manifest = []; }
-  if (!S.manifest.length) S.manifest = LEGACY;
-  try { S.opp = await getJson('oportunidades.json'); } catch { S.opp = { items: [] }; }
-  S.data = {};
-  await Promise.all(S.manifest.map((s) => loadSource(s.id)));
-  if (!S.branch || !srcOf(S.branch)) S.branch = store.get('branch', '') && srcOf(store.get('branch', '')) ? store.get('branch', '') : mayList()[0]?.id || null;
-  updateBadges();
-  renderBranches();
-}
-
-// ---------- tarjetas ----------
-function productCard(p, { right = '', extra = '', id = curId() } = {}) {
-  const promo = p.pr ? `<span class="pill promo">${esc(p.pr)}</span>` : p.pp || p.o ? '<span class="pill promo">Oferta</span>' : '';
-  const minq = p.q ? `<span class="meta">mín. ${p.q} u.${p.pk ? ` · bulto ${p.pk}` : ''}</span>` : '';
-  const was = p.pp && p.p > p.pp ? p.p : p.lp && p.lp > (p.e ?? p.p) ? p.lp : null;
-  return `<button class="card ${kindOf(id) === 'minorista' ? 'min' : 'may'}" data-ean="${esc(p.ean)}" data-src="${esc(id)}">
-    ${imgTag(p, id)}
-    <div>
-      <div class="meta">${srcBadge(id)}${esc(p.c || p.sc || '')}</div>
-      <div class="name">${esc(p.n)}</div>
-      <div><span class="price">${ars(p.e ?? p.p)}</span>${was ? `<span class="was">${ars(was)}</span>` : ''} ${right}</div>
-      <div style="margin-top:4px">${unseen(p) ? `<span class="pill">no visto desde ${ago(p.l)}</span>` : ''}${promo}${minq}${p.sl ? `<span class="meta">Vende: ${esc(p.sl)}</span>` : ''}${extra}</div>
-    </div>
-  </button>`;
+function renderNotice() {
+  const id = curId();
+  const st = S.status?.sources?.[id];
+  const box = $('#notice');
+  let html = '';
+  if (SET.kind === 'mayorista') {
+    const bad = (S.status?.cookies || []).find((c) => !c.ok && (!c.branch || `may-${norm(c.branch).replace(/[^a-z0-9]+/g, '-')}` === id));
+    if (!mayList().length) html = `<b>Mayorista sin datos.</b> Falta cargar la cookie de Carrefour Maxi. <button type="button" class="link" data-goto="sesiones">Ver cómo</button>`;
+    else if (bad || st?.ok === false) html = `<b>Se venció la sesión de Maxi ${esc(title(srcOf(id)?.name || ''))}.</b> Ves precios de ${esc(ago(st?.lastSuccess))}. <button type="button" class="link" data-goto="sesiones">Cómo renovarla</button>`;
+  } else if (st?.ok === false) {
+    html = `<b>La última lectura de carrefour.com.ar falló.</b> Ves precios de ${esc(ago(st.lastSuccess))}.`;
+  }
+  if (!html && st?.lastSuccess && (Date.now() - Date.parse(st.lastSuccess)) / 60000 > (S.status.intervalMinutes || 30) * 3) {
+    html = `<b>Los precios no se actualizan desde ${esc(ago(st.lastSuccess))}.</b> Revisá el estado del monitor en Ajustes.`;
+  }
+  box.hidden = !html;
+  box.innerHTML = html ? `${icon('info')}<div>${html}</div>` : '';
 }
 
-function alertCard(a) {
-  const id = a.sourceId || curId();
-  const types = (a.types || [a.type]).map((t) => `<span class="pill ${t}">${TYPE_LABEL[t] || t}</span>`).join('');
-  const was = a.prev && a.prev > a.price ? `<span class="was">${ars(a.prev)}</span> <span class="neg">-${pct(a.dropPct || 1 - a.price / a.prev)}</span>` : a.listPrice && a.listPrice > a.price ? `<span class="was">${ars(a.listPrice)}</span>` : '';
-  const retail = a.retail ? `<div class="meta">Minorista ${ars(a.retail)}${a.margin != null ? ` · margen <span class="pos">${pct(a.margin)}</span>` : ''}</div>` : '';
-  return `<button class="card ${kindOf(id) === 'minorista' ? 'min' : 'may'}" data-ean="${esc(a.ean)}" data-src="${esc(id)}">
-    ${imgTag(a, id)}
-    <div>
-      <div>${srcBadge(id)}${types}${a.suppressed ? '<span class="pill">no notificada</span>' : ''}</div>
-      <div class="name">${esc(a.name)}</div>
-      <div><span class="price">${ars(a.price)}</span>${was}</div>
-      ${retail}${a.promo ? `<span class="pill promo">${esc(a.promo)}</span>` : ''}${a.seller ? `<div class="meta">Vende: ${esc(a.seller)}</div>` : ''}
-      <ul class="reasons">${(a.reasons || []).map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
-      <div class="meta" style="margin-top:4px">${esc(a.category || '')} · ${ago(a.ts)}${a.notified ? ' · 🔔 avisada' : ''}</div>
-    </div>
-  </button>`;
-}
-
-function oppCard(o) {
-  const sigs = Object.entries(o.signals || {}).map(([k, v]) => `<span class="sig ${k}">${SIG_LABEL[k] || k} ${k === 'reventa' ? '+' : '-'}${pct(v)}</span>`).join('');
-  return `<button class="card ${o.kind === 'minorista' ? 'min' : 'may'}" data-ean="${esc(o.ean)}" data-src="${esc(o.sourceId)}">
-    ${imgTag(o, o.sourceId)}
-    <div>
-      <div class="meta">${srcBadge(o.sourceId)}${esc(o.category || '')}</div>
-      <div class="name">${esc(o.name)}</div>
-      <div><span class="price">${ars(o.price)}</span>${o.listPrice && o.listPrice > o.price ? `<span class="was">${ars(o.listPrice)}</span>` : ''}</div>
-      <div style="margin-top:4px">${sigs}${o.promo ? `<span class="pill promo">${esc(o.promo)}</span>` : ''}${o.minQty ? `<span class="meta">mín. ${o.minQty} u.</span>` : ''}</div>
-      <ul class="reasons">${(o.reasons || []).map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
-    </div>
-  </button>`;
-}
-
-function listHtml(items, render, key) {
-  if (!items.length) return document.getElementById('emptyTpl').innerHTML;
-  const lim = S.limits[key];
-  let html = items.slice(0, lim).map(render).join('');
-  if (items.length > lim) html += `<button class="more" data-more="${key}">Ver más (${items.length - lim})</button>`;
-  return html;
-}
-
-// ---------- vistas ----------
-function oppItems() {
+// ---------- OFERTAS ----------
+async function oppItems() {
+  const id = curId();
   const q = norm($('#oppSearch').value);
-  const scope = $('#oppScope').value;
-  return (S.opp?.items || []).filter((o) => {
-    if (o.kind !== S.kind) return false;
-    if (S.kind === 'mayorista' && scope === 'branch' && o.sourceId !== S.branch) return false;
-    if (S.oppSig && !(S.oppSig in (o.signals || {}))) return false;
-    if (q && !norm(`${o.name} ${o.ean} ${o.category}`).includes(q)) return false;
-    return true;
-  });
+  let items;
+  if (S.oppSig === 'bajas') {
+    const history = await ensureHistory(id);
+    const t = Date.now() / 60000 - 7 * 1440;
+    items = [];
+    for (const p of D().products) {
+      const s = history[p.ean];
+      const v = vm(p, id);
+      if (!s?.length || !v.price) continue;
+      const old = priceAt(s, t) ?? s[0][1];
+      if (!old || old <= v.price) continue;
+      const drop = 1 - v.price / old;
+      if (drop < 0.05) continue;
+      items.push({ v, signals: { bajas: drop }, reasons: [`Antes ${ars(old)} · bajó ${pct(drop)}`], score: drop, pctMain: drop });
+    }
+  } else {
+    items = (S.opp?.items || [])
+      .filter((o) => (SET.kind === 'minorista' ? o.kind === 'minorista' : o.sourceId === SET.branch))
+      .map((o) => {
+        const sig = {};
+        for (const [k, val] of Object.entries(o.signals || {})) {
+          if (k === 'reventa' ? val * 100 >= SET.oppMinMargin : val * 100 >= SET.oppMinPct || k === 'kilo') sig[k] = val;
+        }
+        return { v: vmFrom(o, o.sourceId), signals: sig, reasons: o.reasons || [], stale: o.stale, score: o.score, pctMain: Math.max(0, ...Object.entries(sig).filter(([k]) => k !== 'reventa').map(([, x]) => x)) };
+      })
+      .filter((it) => Object.keys(it.signals).length && (!S.oppSig || S.oppSig in it.signals));
+  }
+  items = items.filter((it) => passes(it.v) && (!q || norm(`${it.v.name} ${it.v.ean} ${it.v.category}`).includes(q)));
+  const sort = $('#oppSort').value;
+  if (sort === 'pct') items.sort((a, b) => b.pctMain - a.pctMain);
+  else if (sort === 'price') items.sort((a, b) => a.v.price - b.v.price);
+  else items.sort((a, b) => b.score - a.score);
+  return items;
 }
-function renderOpp() {
-  const items = oppItems();
-  $('#oppCount').textContent = `${items.length.toLocaleString('es-AR')} oportunidades${S.opp?.updatedAt ? ` · ${ago(S.opp.updatedAt)}` : ''}`;
-  $('#oppList').innerHTML = items.length
-    ? listHtml(items, oppCard, 'oportunidades')
-    : '<div class="empty">No hay oportunidades con estos filtros. Se recalculan en cada lectura (cada 30 min).</div>';
+function sigTags(signals) {
+  return Object.entries(signals).map(([k, val]) => `<span class="tag tag--${SIG[k].tag}">${esc(SIG[k].short || SIG[k].label)} ${SIG[k].sign}${pct(val)}</span>`);
+}
+async function renderOfertas() {
+  renderToday();
+  const counts = {};
+  for (const o of S.opp?.items || []) {
+    if (SET.kind === 'minorista' ? o.kind !== 'minorista' : o.sourceId !== SET.branch) continue;
+    for (const k of Object.keys(o.signals || {})) counts[k] = (counts[k] || 0) + 1;
+  }
+  const keys = SET.kind === 'mayorista' ? ['descuento', 'sucursal', 'reventa', 'bajas', 'kilo'] : ['descuento', 'bajoMayorista', 'bajas', 'kilo'];
+  if (S.oppSig && !keys.includes(S.oppSig)) S.oppSig = '';
+  $('#oppChips').innerHTML = [`<button type="button" class="chip" data-sig="" aria-pressed="${!S.oppSig}">Todas</button>`]
+    .concat(keys.filter((k) => k === 'bajas' || counts[k]).map((k) => `<button type="button" class="chip" data-sig="${k}" aria-pressed="${S.oppSig === k}">${esc(SIG[k].short || SIG[k].label)}${counts[k] ? ` <small>${fmt(counts[k])}</small>` : ''}</button>`))
+    .join('');
+  const items = await oppItems();
+  $('#oppCount').textContent = `${fmt(items.length)} ${items.length === 1 ? 'producto' : 'productos'}${S.opp?.updatedAt ? ` · calculado ${ago(S.opp.updatedAt)}` : ''}`;
+  mountList($('#oppList'), items, (it) => rowHtml(it.v, { tags: [...sigTags(it.signals), ...(it.stale ? ['<span class="tag tag--plain">De la última lectura</span>'] : [])], reasons: it.reasons.slice(0, 2) }),
+    S.oppSig === 'bajas'
+      ? emptyHtml('down', 'Todavía no hay bajas registradas', 'El historial se arma con cada lectura. En unos días vas a ver acá lo que bajó en la última semana.')
+      : emptyHtml('tag', 'No hay ofertas con estos filtros', 'Probá con otra categoría o bajá el descuento mínimo en Ajustes.'));
+}
+function renderToday() {
+  const { dow } = todayAR();
+  const kind = SET.kind;
+  const best = (d) => activePromos(kind, d).sort((a, b) => b.pct - a.pct)[0];
+  const now = best(dow);
+  $('#todayDay').textContent = DAYS[dow];
+  const where = kind === 'mayorista' ? 'Carrefour Maxi' : 'carrefour.com.ar';
+  if (now) {
+    $('#todayText').innerHTML = `<b>${now.pct}% con ${esc(medioName(now.medio))}</b> en ${where}. ${now.acumulable ? 'Se suma a las ofertas' : 'No se suma a otras ofertas'}${now.tope ? `, tope ${ars(now.tope)}` : ', sin tope'}.`;
+  } else {
+    let next = null;
+    for (let i = 1; i <= 7 && !next; i++) { const d = (dow + i) % 7; const p = best(d); if (p) next = { d, p }; }
+    $('#todayText').innerHTML = next
+      ? `Hoy no hay descuento con tus medios de pago. <b>${title(DAYS_FULL[next.d])}: ${next.p.pct}%</b> con ${esc(medioName(next.p.medio))}.`
+      : 'No hay descuentos por día con los medios de pago que elegiste. Cambialos en Ajustes.';
+  }
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  $('#todayWeek').innerHTML = order.map((d) => {
+    const p = best(d);
+    return `<span class="${p ? 'on' : ''}${d === dow ? ' now' : ''}"><b>${DAYS[d]}</b>${p ? `${p.pct}%` : '·'}</span>`;
+  }).join('');
+}
+function openPromos() {
+  const { iso } = todayAR();
+  const list = (S.promos?.promos || []).slice().sort((a, b) => (SET.medios[b.medio] ? 1 : 0) - (SET.medios[a.medio] ? 1 : 0));
+  const row = (pr) => `<div class="srow srow--stack"><div class="srow__label"><b>${esc(pr.titulo)}</b><span>${esc(pr.detalle)}</span>
+      <span class="row__tags" style="margin-top:6px"><span class="tag ${SET.medios[pr.medio] ? 'tag--good' : 'tag--plain'}">${esc(medioName(pr.medio))}${SET.medios[pr.medio] ? '' : ' · no la tenés marcada'}</span>
+      <span class="tag tag--plain">${pr.dias.map((d) => DAYS[d]).join(' · ')}</span>${pr.hasta ? `<span class="tag ${iso > pr.hasta ? 'tag--drop' : 'tag--plain'}">${iso > pr.hasta ? 'Vencida' : 'Hasta'} ${pr.hasta.split('-').reverse().join('/')}</span>` : ''}</span></div></div>`;
+  openSheet(`
+    <div class="d-sec"><h3>Descuentos por día</h3><h2 id="sheetTitle" style="margin:0;font-size:20px">Cuándo conviene comprar</h2>
+      <p class="lead" style="font-size:14px">Según tus medios de pago, la web muestra el <b>precio de hoy</b> con el descuento ya aplicado. Elegí tus medios de pago en Ajustes.</p></div>
+    <div class="group"><h2>Carrefour Maxi</h2><div class="group__box">${list.filter((p) => p.fuentes.includes('mayorista')).map(row).join('')}</div></div>
+    <div class="group"><h2>carrefour.com.ar</h2><div class="group__box">${list.filter((p) => p.fuentes.includes('minorista')).map(row).join('')}</div></div>
+    <p class="group__hint">Fuente: <a href="${esc(S.promos?.fuente || '#')}" target="_blank" rel="noopener">Carrefour Banco</a>, actualizado ${esc((S.promos?.actualizado || '').split('-').reverse().join('/'))}. El monitor te avisa si cambian.</p>`);
 }
 
-function renderAlerts() {
+// ---------- ALERTAS ----------
+function renderAlertas() {
   const q = norm($('#alertSearch').value);
   const hours = Number($('#alertRange').value);
   const since = hours ? Date.now() - hours * 3600e3 : 0;
-  const items = D().alerts.filter((a) => {
-    if (S.alertType && !(a.types || [a.type]).includes(S.alertType)) return false;
-    if (since && Date.parse(a.ts) < since) return false;
-    if (q && !norm(`${a.name} ${a.ean} ${a.category} ${a.brand || ''}`).includes(q)) return false;
-    return true;
-  });
-  $('#alertList').innerHTML = listHtml(items, alertCard, 'alertas');
+  const base = D().alerts.filter((a) => (!since || Date.parse(a.ts) >= since));
+  const counts = {};
+  for (const a of base) for (const t of a.types || [a.type]) counts[t] = (counts[t] || 0) + 1;
+  if (S.alertType && !counts[S.alertType]) S.alertType = '';
+  $('#alertChips').innerHTML = [`<button type="button" class="chip" data-type="" aria-pressed="${!S.alertType}">Todas <small>${fmt(base.length)}</small></button>`]
+    .concat(Object.keys(TYPE).filter((t) => counts[t]).map((t) => `<button type="button" class="chip" data-type="${t}" aria-pressed="${S.alertType === t}">${TYPE[t].label} <small>${fmt(counts[t])}</small></button>`))
+    .join('');
+  const items = base
+    .filter((a) => (!S.alertType || (a.types || [a.type]).includes(S.alertType)) && (!q || norm(`${a.name} ${a.ean} ${a.category}`).includes(q)))
+    .map((a) => ({ a, v: vmFrom(a, a.sourceId) }))
+    .filter((x) => passes(x.v));
+  $('#alertCount').textContent = `${fmt(items.length)} ${items.length === 1 ? 'alerta' : 'alertas'}`;
+  mountList($('#alertList'), items, ({ a, v }) => {
+    const tags = (a.types || [a.type]).map((t) => `<span class="tag tag--${TYPE[t]?.tag || 'plain'}">${TYPE[t]?.label || t}</span>`);
+    const pctTag = a.prev && a.prev > a.price ? `<span class="tag tag--drop">−${pct(a.dropPct || 1 - a.price / a.prev)}</span>` : '';
+    const note = `<span class="mono">${esc(ago(a.ts))}${a.notified ? ' · avisada al celular' : ''}</span>`;
+    return rowHtml({ ...v, price: a.price, was: a.prev && a.prev > a.price ? a.prev : v.was }, { tags, reasons: (a.reasons || []).slice(0, 2), pctTag, note });
+  }, emptyHtml('bell', 'Sin alertas en este período', 'Las alertas aparecen cuando un precio baja fuerte, parece un error o llega a su mínimo. Necesitan algunas lecturas de historial.'));
 }
 
-function updateBadges() {
-  const day = (kind) => S.manifest.filter((s) => s.kind === kind).reduce((n, s) => n + dataOf(s.id).alerts.filter((a) => Date.parse(a.ts) > Date.now() - 864e5).length, 0);
-  $('#badgeMay').textContent = day('mayorista') || '';
-  $('#badgeMin').textContent = day('minorista') || '';
-}
-
-function renderBranches() {
-  const list = mayList();
-  const box = $('#branches');
-  if (list.length < 2) { box.innerHTML = ''; return; }
-  box.innerHTML = list.map((s) => {
-    const st = S.status?.sources?.[s.id];
-    const bad = st && st.ok === false;
-    return `<button role="radio" data-branch="${esc(s.id)}" class="${s.id === S.branch ? 'active' : ''}" aria-checked="${s.id === S.branch}">${esc(title(s.name))}${bad ? ' <span class="stale">⚠️</span>' : ''}</button>`;
-  }).join('');
-}
-
-async function renderResale() {
-  if (S.kind !== 'mayorista') return setTab('oportunidades');
-  if (!S.retail) $('#resaleList').innerHTML = '<div class="empty">Cargando precios minoristas…</div>';
-  const retail = await ensureRetail();
-  const min = Number($('#marginMin').value) / 100;
-  $('#marginVal').textContent = pct(min);
-  const q = norm($('#resaleSearch').value);
-  const sector = $('#resaleSector').value;
-  const items = [];
-  for (const p of D().products) {
-    const r = retail[p.ean];
-    const price = p.e ?? p.p;
-    if (!r?.price || !price || r.available === false || unseen(p)) continue;
-    const margin = r.price / price - 1;
-    if (margin < min) continue;
-    if (sector && p.s !== sector) continue;
-    if (q && !norm(`${p.n} ${p.ean}`).includes(q)) continue;
-    items.push({ p, r, margin });
-  }
-  items.sort((a, b) => b.margin - a.margin);
-  $('#resaleList').innerHTML = listHtml(items, ({ p, r, margin }) => productCard(p, {
-    right: `<span class="pos">+${pct(margin)}</span>`,
-    extra: `<div class="meta">Minorista ${ars(r.price)} · ganancia ${ars(r.price - (p.e ?? p.p))} por unidad</div>`,
-  }), 'reventa');
-}
-
-async function renderDrops() {
+// ---------- BUSCAR ----------
+async function renderBuscar() {
   const id = curId();
-  if (!dataOf(id).history) $('#dropList').innerHTML = '<div class="empty">Cargando historial…</div>';
-  const history = await ensureHistory(id);
-  if (id !== curId()) return;
-  const w = $('#dropWindow').value;
-  const sector = $('#dropSector').value;
-  const t = Date.now() / 60000 - (w === 'ref' ? 0 : Number(w) * 1440);
-  const items = [];
-  for (const p of D().products) {
-    const s = history[p.ean];
-    const now = p.e ?? p.p;
-    if (!s?.length || !now) continue;
-    if (sector && p.s !== sector) continue;
-    const old = w === 'ref' ? refPrice(s) : priceAt(s, t);
-    if (!old || old <= now) continue;
-    const drop = 1 - now / old;
-    if (drop < 0.02) continue;
-    items.push({ p, old, drop });
-  }
-  items.sort((a, b) => b.drop - a.drop);
-  $('#dropList').innerHTML = items.length
-    ? listHtml(items, ({ p, old, drop }) => productCard(p, { right: `<span class="neg">-${pct(drop)}</span>`, extra: `<div class="meta">Antes ${ars(old)}</div>` }), 'bajas')
-    : '<div class="empty">Todavía no hay bajas registradas. El historial se arma con cada lectura; mientras tanto mirá 🔥 Oportunidades.</div>';
-}
-
-function searchItems() {
   const q = norm($('#q').value);
   const sector = $('#searchSector').value;
   const sort = $('#searchSort').value;
-  let items = D().products.filter((p) => (!sector || p.s === sector) && (!q || norm(`${p.n} ${p.ean} ${p.c} ${p.b || ''}`).includes(q)));
-  const price = (p) => p.e ?? p.p ?? Infinity;
-  const onSale = (p) => (p.pr || p.pp || p.o || (p.lp && p.lp > price(p)) ? 1 : 0);
-  if (sort === 'priceAsc') items.sort((a, b) => price(a) - price(b));
-  else if (sort === 'priceDesc') items.sort((a, b) => price(b) - price(a));
-  else if (sort === 'promo') items.sort((a, b) => onSale(b) - onSale(a));
-  else if (sort === 'unit') {
-    const u = (p) => { const x = unitOf(p); return x ? price(p) / x.q : Infinity; };
-    items = items.map((p) => ({ p, u: u(p) })).sort((a, b) => a.u - b.u).map((x) => x.p);
-  }
-  return items;
+  let items = D().products.map((p) => vm(p, id)).filter((v) => passes(v) && (!sector || v.sector === sector) && (!q || norm(`${v.name} ${v.ean} ${v.category}`).includes(q)));
+  let extra = () => ({});
+  if (sort === 'priceAsc') items.sort((a, b) => a.price - b.price);
+  else if (sort === 'priceDesc') items.sort((a, b) => b.price - a.price);
+  else if (sort === 'offer') items.sort((a, b) => (b.promo || b.was ? 1 : 0) - (a.promo || a.was ? 1 : 0));
+  else if (sort === 'unit') items = items.map((v) => ({ v, u: unitPrice(v)?.price ?? Infinity })).sort((a, b) => a.u - b.u).map((x) => x.v);
+  else if (sort === 'margin' && SET.kind === 'mayorista') {
+    const r = await ensureRetail();
+    items = items.filter((v) => r[v.ean]?.price).map((v) => ({ v, m: r[v.ean].price / v.price - 1 })).sort((a, b) => b.m - a.m).map((x) => x.v);
+    extra = (v) => ({ tags: [`<span class="tag tag--good">Reventa +${pct(r[v.ean].price / v.price - 1)}</span>`], reasons: [`En carrefour.com.ar sale ${ars(r[v.ean].price)}`] });
+  } else if (sort === 'drop') {
+    const h = await ensureHistory(id);
+    const t = Date.now() / 60000 - 7 * 1440;
+    items = items.map((v) => { const s = h[v.ean]; const old = s?.length ? priceAt(s, t) ?? s[0][1] : null; return { v, d: old && old > v.price ? 1 - v.price / old : 0, old }; }).filter((x) => x.d > 0).sort((a, b) => b.d - a.d);
+    const map = new Map(items.map((x) => [x.v.ean, x]));
+    items = items.map((x) => x.v);
+    extra = (v) => ({ pctTag: `<span class="tag tag--drop">−${pct(map.get(v.ean).d)}</span>`, reasons: [`Antes ${ars(map.get(v.ean).old)}`] });
+  } else items.sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  $('#searchCount').textContent = `${fmt(items.length)} productos`;
+  mountList($('#searchList'), items, (v) => rowHtml(v, extra(v)), emptyHtml('search', 'Sin resultados', 'Probá con otra palabra, el código de barras o revisá las categorías ocultas en Ajustes.'));
 }
-function renderSearch() {
-  const items = searchItems();
-  $('#searchCount').textContent = `${items.length.toLocaleString('es-AR')} productos ${S.kind === 'minorista' ? 'minoristas' : `mayoristas · ${title(srcOf(S.branch)?.name || '')}`}`;
-  $('#searchList').innerHTML = listHtml(items, (p) => {
-    const x = unitOf(p);
-    return productCard(p, { extra: x ? `<div class="meta">${ars((p.e ?? p.p) / x.q)} por ${x.u}</div>` : '' });
-  }, 'buscar');
-}
-
-function sourceBox(s) {
-  const st = S.status?.sources?.[s.id];
-  const head = s.kind === 'minorista' ? '🛒 Minorista · carrefour.com.ar' : `🏪 Mayorista · Maxi ${esc(title(s.name))}`;
-  if (!st) return `<div class="box"><h3>${head}</h3><div class="meta">Sin datos todavía.</div></div>`;
-  return `<div class="box"><h3>${head}</h3><dl class="kv">
-    <dt>Estado</dt><dd>${st.ok ? '✅ Funcionando' : '❌ Con errores'}</dd>
-    <dt>Última lectura OK</dt><dd>${st.lastSuccess ? `${fmtDate(st.lastSuccess)} (${ago(st.lastSuccess)})` : '—'}</dd>
-    <dt>Productos</dt><dd>${(st.products || 0).toLocaleString('es-AR')}</dd>
-    ${st.cookieVar ? `<dt>Cookie</dt><dd>${esc(st.cookieVar)}</dd>` : ''}
-    ${st.lastError ? `<dt>Último error</dt><dd class="neg">${esc(st.lastError)}</dd>` : ''}
-    ${(st.warnings || []).length ? `<dt>Avisos</dt><dd>${st.warnings.map(esc).join('<br>')}</dd>` : ''}
-  </dl></div>`;
+function fillSectors() {
+  const sectors = [...new Set(D().products.map((p) => p.s).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+  const sel = $('#searchSector');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Todas las secciones</option>' + sectors.filter((s) => !(SET.hidden[SET.kind] || []).includes(s)).map((s) => `<option>${esc(s)}</option>`).join('');
+  sel.value = sectors.includes(cur) ? cur : '';
+  const marginOpt = $('#searchSort option[value="margin"]');
+  marginOpt.hidden = SET.kind !== 'mayorista';
+  if (SET.kind !== 'mayorista' && $('#searchSort').value === 'margin') $('#searchSort').value = 'name';
 }
 
-function renderStatus() {
-  const s = S.status;
-  if (!s) { $('#statusBox').innerHTML = '<div class="empty">Sin datos todavía. El monitor no corrió nunca o falta configurarlo.</div>'; return; }
-  const ch = s.channels || {};
-  const chans = Object.entries(ch).filter(([, v]) => v).map(([k]) => k).join(', ') || 'ninguno (sólo web)';
-  const cookies = (s.cookies || []).map((c) => `<tr><td>${esc(c.var)}</td><td>${c.ok ? '✅' : '❌'}</td><td>${esc(c.branch ? title(c.branch) : '—')}</td><td class="meta">${esc(c.ok ? '' : (c.error || '').slice(0, 120))}</td></tr>`).join('');
-  const names = Object.fromEntries(S.manifest.map((m) => [m.id, m.kind === 'minorista' ? '🛒' : title(m.name)]));
-  const runs = (s.runs || []).slice(0, 48).map((r) => {
-    const cells = Object.entries(r.results || {}).map(([id, x]) => `${names[id] || id}: ${x.ok ? `✅${x.alerts ? ` ${x.alerts}` : ''}` : '❌'}`).join(' · ');
-    return `<tr><td>${fmtDate(r.at)}</td><td>${cells}</td><td>${r.opp ? r.opp.total : ''}</td><td>${r.ms ? (r.ms / 1000).toFixed(0) + ' s' : ''}</td></tr>`;
-  }).join('');
-  $('#statusBox').innerHTML = `
-    <div class="status-grid">${S.manifest.map(sourceBox).join('')}</div>
-    <div class="box"><h3>Cookies de sesión (una por sucursal)</h3><div class="table-wrap"><table>
-      <thead><tr><th>Secret</th><th></th><th>Sucursal</th><th></th></tr></thead><tbody>${cookies || '<tr><td colspan="4">—</td></tr>'}</tbody></table></div></div>
-    <div class="box"><dl class="kv">
-      <dt>Frecuencia</dt><dd>cada ${s.intervalMinutes || 30} min</dd>
-      <dt>Último intento</dt><dd>${s.lastRun ? `${fmtDate(s.lastRun)} (${ago(s.lastRun)})` : '—'}</dd>
-      <dt>Avisos push</dt><dd>${esc(chans)}</dd>
-      <dt>Oportunidades</dt><dd>${s.opportunities ? `${s.opportunities.total} (${s.opportunities.strong} fuertes)` : '—'}</dd>
-    </dl></div>
-    <div class="box"><h3>Últimas corridas</h3><div class="table-wrap"><table>
-      <thead><tr><th>Fecha</th><th>Resultado</th><th>Oport.</th><th>Dur.</th></tr></thead>
-      <tbody>${runs}</tbody></table></div></div>`;
+// ---------- FAVORITOS ----------
+function renderFavoritos() {
+  const items = Object.values(FAVS).sort((a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''));
+  mountList($('#favList'), items, (f) => {
+    const p = dataOf(f.id).byEan.get(f.ean);
+    const v = p ? vm(p, f.id) : vm({ ean: f.ean, n: f.name, e: f.price, im: f.im }, f.id);
+    const ch = p && f.price ? v.price / f.price - 1 : 0;
+    const pctTag = Math.abs(ch) >= 0.005 ? `<span class="tag ${ch < 0 ? 'tag--good' : 'tag--drop'}">${ch < 0 ? '▼' : '▲'} ${pct(Math.abs(ch))}</span>` : '';
+    const note = `<span class="mono">Guardado ${esc(ago(f.addedAt))} a ${ars(f.price)}${p ? '' : ' · ya no aparece'}</span>`;
+    return rowHtml(v, { pctTag, note });
+  }, emptyHtml('star', 'Todavía no guardaste productos', 'Tocá la estrella de cualquier producto para seguir su precio desde acá.'));
 }
-
-function updateStatusPill() {
-  const id = curId();
-  const s = S.status?.sources?.[id];
-  const pill = $('#statusPill');
-  pill.classList.remove('ok', 'warn', 'bad');
-  const banner = $('#banner');
-  const msgs = [];
-  if (!s?.lastSuccess) {
-    pill.classList.add('bad');
-    $('#statusText').textContent = 'Sin datos';
-    if (s?.lastError) msgs.push(`⚠️ ${s.lastError}`);
+function toggleFav(key) {
+  const [id, ean] = key.split('|');
+  if (FAVS[key]) {
+    delete FAVS[key];
+    toast('Quitado de favoritos');
   } else {
-    const mins = (Date.now() - Date.parse(s.lastSuccess)) / 60000;
-    const interval = S.status.intervalMinutes || 30;
-    pill.classList.add(!s.ok || mins > interval * 6 ? 'bad' : mins > interval * 2.5 ? 'warn' : 'ok');
-    $('#statusText').textContent = ago(s.lastSuccess);
-    if (!s.ok && s.lastError) msgs.push(`⚠️ La última lectura falló (se muestran datos de ${ago(s.lastSuccess)}): ${s.lastError}`);
-    else if (mins > interval * 2.5) msgs.push(`⚠️ Los precios no se actualizan desde ${ago(s.lastSuccess)}.`);
-    for (const w of s.warnings || []) if (/primera lectura|primera corrida/i.test(w)) msgs.push(`ℹ️ ${w}`);
+    const p = dataOf(id).byEan.get(ean);
+    const v = p ? vm(p, id) : null;
+    FAVS[key] = { id, ean, name: v?.name || ean, price: v?.price || null, im: v?.im || null, addedAt: new Date().toISOString() };
+    toast('Guardado en favoritos');
   }
-  if (S.kind === 'mayorista' && !mayList().length) msgs.push('⚠️ Mayorista sin datos: falta cargar la cookie (secret CF_COOKIE). Mientras tanto podés usar 🛒 Minorista.');
-  for (const c of S.status?.cookies || []) if (!c.ok && S.kind === 'mayorista') msgs.push(`⚠️ ${c.var}${c.branch ? ` (${title(c.branch)})` : ''}: ${c.error}`);
-  banner.hidden = !msgs.length;
-  banner.innerHTML = [...new Set(msgs)].map(esc).join('<br>');
-  const n = s?.products ? ` · ${s.products.toLocaleString('es-AR')} productos` : '';
-  $('#branch').textContent = S.kind === 'mayorista' ? `Mayorista · Maxi ${title(srcOf(S.branch)?.name || '')}${n}` : `Minorista · carrefour.com.ar${n}`;
+  saveFavs();
+  document.querySelectorAll(`[data-fav="${CSS.escape(key)}"]`).forEach((b) => {
+    const on = Boolean(FAVS[key]);
+    b.setAttribute('aria-pressed', String(on));
+    b.setAttribute('aria-label', on ? 'Quitar de favoritos' : 'Guardar en favoritos');
+  });
+  if (SET.view === 'favoritos') renderFavoritos();
+}
+
+// ---------- AJUSTES ----------
+const toggleHtml = (id, on, label, hint) => `<div class="srow"><label class="srow__label" for="${id}"><b>${label}</b>${hint ? `<span>${hint}</span>` : ''}</label><span class="toggle"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><span></span></span></div>`;
+function renderAjustes() {
+  const kind = SET.kind;
+  const sectors = {};
+  for (const p of D().products) sectors[p.s] = (sectors[p.s] || 0) + 1;
+  const hidden = SET.hidden[kind] || [];
+  const st = S.status || {};
+  const ch = st.channels || {};
+  const anyCh = ch.telegram || ch.ntfy || ch.discord;
+  const av = S.ajustes?.avisos || {};
+  const cookies = st.cookies || [];
+  const srcRows = S.manifest.map((s) => {
+    const x = st.sources?.[s.id] || {};
+    return `<div class="srow"><div class="srow__label"><b>${s.kind === 'minorista' ? 'carrefour.com.ar' : `Maxi ${esc(title(s.name))}`}</b><span>${x.lastSuccess ? `Última lectura ${esc(ago(x.lastSuccess))} · ${fmt(x.products || 0)} productos` : 'Sin lecturas'}${x.lastError ? ` · ${esc(x.lastError)}` : ''}</span></div><span class="pill ${x.ok ? 'ok' : 'bad'}"><i></i>${x.ok ? 'Bien' : 'Con error'}</span></div>`;
+  }).join('');
+  const runs = (st.runs || []).slice(0, 12).map((r) => `<tr><td>${esc(fmtDate(r.at))}</td><td>${Object.entries(r.results || {}).map(([id, x]) => `${esc(srcOf(id) ? (srcOf(id).kind === 'minorista' ? 'Web' : title(srcOf(id).name)) : id)} ${x.ok ? '✓' : '✗'}`).join(' · ')}</td><td>${r.ms ? `${Math.round(r.ms / 1000)} s` : ''}</td></tr>`).join('');
+  $('#settingsBox').innerHTML = `<div class="set">
+    <section class="group"><h2>Medios de pago</h2>
+      <div class="group__box">
+        ${toggleHtml('m-prepaga', SET.medios.prepaga, 'Prepaga / Cuenta Digital Carrefour', 'Maxi: 10% sábados y domingos. Web: 15% viernes y 10% fines de semana.')}
+        ${toggleHtml('m-credito', SET.medios.credito, 'Tarjeta de crédito Carrefour', 'Maxi: 15% lunes y martes. Web: 20% martes, 15% el resto (menos jueves).')}
+        ${toggleHtml('m-anses', SET.medios.anses, 'Mayor de 60 (ANSES)', 'Web: 10% de lunes a miércoles, tope $20.000 por mes.')}
+      </div>
+      <p class="group__hint">Con esto calculamos el <b>precio de hoy</b> en cada producto. <button type="button" class="link" data-act="promos">Ver todos los descuentos</button></p>
+    </section>
+
+    <section class="group"><h2>Qué productos ver</h2>
+      <div class="group__box">
+        <div class="srow srow--stack"><label class="srow__label" for="s-max"><b>Precio máximo por unidad</b><span>Los más caros que esto no se muestran.</span></label>
+          <div class="range"><input id="s-max" type="range" min="1000" max="40000" step="500" value="${SET.maxPrice}"><output id="s-max-o">${ars(SET.maxPrice)}</output></div></div>
+        <div class="srow"><label class="srow__label" for="s-minq"><b>Compra mínima hasta</b><span>Oculta productos que exigen llevar muchas unidades.</span></label>
+          <select id="s-minq">${[0, 1, 3, 6, 12, 24].map((n) => `<option value="${n}" ${SET.maxMinQty === n ? 'selected' : ''}>${n ? `${n} u.` : 'Cualquiera'}</option>`).join('')}</select></div>
+        ${toggleHtml('s-unseen', SET.hideUnseen, 'Ocultar sin stock', 'Productos que no aparecieron en la última lectura.')}
+        <div class="srow srow--stack"><div class="srow__label"><b>Categorías de ${kind === 'mayorista' ? 'Carrefour Maxi' : 'carrefour.com.ar'}</b><span>Tocá para ocultar o mostrar. Afecta ofertas, alertas, búsqueda y favoritos.</span></div>
+          <div class="cats">${Object.entries(sectors).sort((a, b) => a[0].localeCompare(b[0], 'es')).map(([s, n]) => `<button type="button" class="cat" data-cat="${esc(s)}" aria-pressed="${!hidden.includes(s)}">${esc(title(s))} <small>${fmt(n)}</small></button>`).join('')}</div>
+          ${hidden.length ? '<div><button type="button" class="btn btn--ghost" data-act="showall">Mostrar todas</button></div>' : ''}</div>
+      </div>
+    </section>
+
+    <section class="group"><h2>Ofertas</h2>
+      <div class="group__box">
+        <div class="srow srow--stack"><label class="srow__label" for="s-pct"><b>Descuento mínimo</b><span>Para descuentos, diferencias entre sucursales y contra Maxi.</span></label>
+          <div class="range"><input id="s-pct" type="range" min="10" max="80" step="5" value="${SET.oppMinPct}"><output id="s-pct-o">${SET.oppMinPct}%</output></div></div>
+        <div class="srow srow--stack"><label class="srow__label" for="s-mg"><b>Margen mínimo de reventa</b><span>Diferencia entre Maxi y carrefour.com.ar.</span></label>
+          <div class="range"><input id="s-mg" type="range" min="20" max="200" step="5" value="${SET.oppMinMargin}"><output id="s-mg-o">${SET.oppMinMargin}%</output></div></div>
+      </div>
+    </section>
+
+    <section class="group" id="g-avisos"><h2>Avisos al celular</h2>
+      <div class="group__box">
+        <div class="srow"><div class="srow__label"><b>Estado</b><span>${anyCh ? `Activos por ${Object.entries(ch).filter(([, v]) => v).map(([k]) => k).join(', ')}.` : 'Todavía no hay ningún canal configurado.'}</span></div><span class="pill ${anyCh ? 'ok' : 'bad'}"><i></i>${anyCh ? 'Activos' : 'Apagados'}</span></div>
+        ${anyCh ? '' : `<div class="srow srow--stack"><div class="srow__label"><b>Activarlos con ntfy (gratis, sin cuenta)</b></div>
+          <ol class="steps"><li>Instalá la app <b>ntfy</b> en el celular.</li><li>Elegí un nombre difícil de adivinar y copialo:</li></ol>
+          <div class="copy"><code id="ntfyName">${esc(store.get('radar.ntfy', '') || newTopic())}</code><button type="button" class="btn btn--ghost" data-copy="ntfyName">${icon('copy')}Copiar</button></div>
+          <ol class="steps" start="3"><li>En ntfy tocá <b>+</b> y suscribite a ese nombre.</li><li>En GitHub creá el secret <b>NTFY_TOPIC</b> con el mismo nombre: <a href="${repo}/settings/secrets/actions/new" target="_blank" rel="noopener">abrir</a>.</li></ol></div>`}
+        <div class="srow srow--stack"><div class="srow__label"><b>Cuándo te avisa</b><span>Baja fuerte: Maxi ${av.baja_fuerte_mayorista_pct ?? 15}% · web ${av.baja_fuerte_minorista_pct ?? 30}%. Posible error: ${av.posible_error_pct ?? 50}%. Reventa: ${av.margen_reventa_pct ?? 35}%. Oportunidades: descuento ${av.oportunidad_descuento_pct ?? 50}%, entre sucursales ${av.oportunidad_entre_sucursales_pct ?? 35}%, web más barata que Maxi ${av.oportunidad_minorista_mas_barato_pct ?? 40}%. Productos de hasta ${ars(S.ajustes?.precio_maximo_por_unidad ?? 40000)}.</span></div>
+          <div><a class="btn btn--ghost" href="${repo}/edit/main/ajustes.json" target="_blank" rel="noopener">${icon('external')}Cambiar en GitHub</a></div></div>
+      </div>
+    </section>
+
+    <section class="group" id="g-sesiones"><h2>Sesiones de Carrefour Maxi</h2>
+      <div class="group__box">
+        ${cookies.length ? cookies.map((c) => `<div class="srow"><div class="srow__label"><b>${esc(c.branch ? `Maxi ${title(c.branch)}` : c.var)}</b><span>${esc(c.var)}${c.ok ? ' · funcionando' : ` · ${esc(c.error || 'vencida')}`}</span></div><span class="pill ${c.ok ? 'ok' : 'bad'}"><i></i>${c.ok ? 'Activa' : 'Vencida'}</span></div>`).join('') : '<div class="srow"><div class="srow__label"><b>No hay cookies cargadas</b><span>Sin cookie no hay precios mayoristas.</span></div></div>'}
+        <div class="srow srow--stack"><div class="srow__label"><b>Que no se corte</b><span>La sesión de Carrefour vence si pasa media hora sin uso. GitHub a veces atrasa sus horarios; para que nunca se corte, programá un aviso externo gratis en cron-job.org.</span></div>
+          <div><a class="btn btn--ghost" href="${repo}#que-la-sesión-no-se-corte-recomendado" target="_blank" rel="noopener">${icon('external')}Ver los pasos</a></div></div>
+        <div class="srow srow--stack"><div class="srow__label"><b>Renovar o sumar una sucursal</b><span>Si la sesión ya se cortó, hay que volver a ingresar y cargar la cookie nueva.</span></div>
+          <ol class="steps"><li>Para otra sucursal, primero borrá los datos del sitio: Ajustes del iPhone → Safari → Avanzado → Datos de sitios web → <b>carrefour</b>.</li><li>Entrá a Carrefour Maxi y elegí la sucursal.</li><li>Copiá la cookie <b>PHPSESSID</b> y cargala en GitHub como <b>CF_COOKIE</b> (Zárate en <b>CF_COOKIE_2</b>, Escobar en <b>CF_COOKIE_3</b>).</li></ol>
+          <div class="actions"><a class="btn btn--primary" href="${MAXI}" target="_blank" rel="noopener">${icon('external')}Abrir Carrefour Maxi</a><a class="btn btn--ghost" href="${repo}/settings/secrets/actions" target="_blank" rel="noopener">${icon('external')}Secrets de GitHub</a></div></div>
+      </div>
+    </section>
+
+    <section class="group"><h2>Apariencia</h2>
+      <div class="group__box"><div class="srow"><div class="srow__label"><b>Tema</b></div>
+        <div class="seg" role="group" aria-label="Tema">${[['system', 'Sistema'], ['light', 'Claro'], ['dark', 'Oscuro']].map(([k, l]) => `<button type="button" data-theme-set="${k}" aria-pressed="${SET.theme === k}">${l}</button>`).join('')}</div></div></div>
+    </section>
+
+    <section class="group"><h2>Descargas (Excel)</h2>
+      <div class="group__box"><div class="srow srow--stack"><div class="srow__label"><b>${SET.kind === 'mayorista' ? `Maxi ${esc(title(srcOf(SET.branch)?.name || ''))}` : 'carrefour.com.ar'}</b><span>Archivos CSV que se abren con Excel o Google Sheets.</span></div>
+        <div class="actions"><button type="button" class="btn btn--ghost" data-dl="list">${icon('download')}Lista de precios</button><button type="button" class="btn btn--ghost" data-dl="history">${icon('download')}Historial completo</button><button type="button" class="btn btn--ghost" data-dl="opp">${icon('download')}Ofertas</button></div></div></div>
+    </section>
+
+    <section class="group" id="g-estado"><h2>Estado del monitor</h2>
+      <div class="group__box">${srcRows}
+        <div class="table-wrap"><table class="runs"><thead><tr><th>Lectura</th><th>Resultado</th><th>Duración</th></tr></thead><tbody>${runs}</tbody></table></div></div>
+      <p class="group__hint">Lee todo cada 30 minutos.</p>
+    </section>
+
+    <section class="group"><div class="group__box"><div class="srow"><div class="srow__label"><b>Restablecer ajustes</b><span>Vuelve a los valores de fábrica. No borra favoritos.</span></div><button type="button" class="btn btn--ghost" data-act="reset">Restablecer</button></div></div></section>
+  </div>`;
+}
+function newTopic() {
+  const a = 'abcdefghijkmnpqrstuvwxyz23456789';
+  let s = 'radar-maxi-';
+  const r = crypto.getRandomValues(new Uint8Array(10));
+  for (const x of r) s += a[x % a.length];
+  store.set('radar.ntfy', s);
+  return s;
 }
 
 // ---------- detalle ----------
-function chartSvg(series, retail) {
+function chartHtml(series, retail) {
+  if (!series?.length) return '<p class="mono">Todavía no hay historial: se arma con cada lectura.</p>';
+  return `<div class="chart" id="chart" role="img" aria-label="Historial de precio desde ${esc(fmtDate(series[0][0] * 60000))}"><svg id="chartSvg"></svg><div class="tip" id="chartTip" hidden></div></div>`;
+}
+function drawChart(series, retail) {
+  const box = $('#chart');
+  const svg = $('#chartSvg');
+  if (!box || !svg) return;
+  const W = Math.max(280, box.clientWidth);
+  const H = 190, L = 56, R = 12, T = 14, B = 24;
   const now = Date.now() / 60000;
-  if (!series?.length) return '<div class="meta">Sin historial todavía.</div>';
   const pts = series.map((p) => [p[0], p[1]]);
-  pts.push([now, pts[pts.length - 1][1]]);
-  const W = 600, H = 180, L = 52, R = 10, T = 12, B = 24;
-  const x0 = pts[0][0], x1 = Math.max(now, x0 + 60);
+  const x0 = pts[0][0];
+  const x1 = Math.max(now, x0 + 60);
   const vals = pts.map((p) => p[1]).concat(retail ? [retail] : []);
   let y0 = Math.min(...vals), y1 = Math.max(...vals);
-  if (y0 === y1) { y0 *= 0.9; y1 *= 1.1; }
-  const pad = (y1 - y0) * 0.12; y0 -= pad; y1 += pad;
+  if (y0 === y1) { y0 *= 0.92; y1 *= 1.08; }
+  const pad = (y1 - y0) * 0.14; y0 -= pad; y1 += pad;
   const X = (t) => L + ((t - x0) / (x1 - x0)) * (W - L - R);
   const Y = (v) => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
   let d = `M${X(pts[0][0]).toFixed(1)},${Y(pts[0][1]).toFixed(1)}`;
   for (let i = 1; i < pts.length; i++) d += ` H${X(pts[i][0]).toFixed(1)} V${Y(pts[i][1]).toFixed(1)}`;
+  d += ` H${X(now).toFixed(1)}`;
   const area = `${d} V${H - B} H${X(pts[0][0]).toFixed(1)} Z`;
-  const ticks = [y0 + pad, (y0 + y1) / 2, y1 - pad].map((v) => `<line class="grid" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text x="${L - 6}" y="${Y(v) + 3}" text-anchor="end">${ars(v)}</text>`).join('');
-  const dl = (t) => new Date(t * 60000).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
-  const retailLine = retail ? `<line class="retail" x1="${L}" x2="${W - R}" y1="${Y(retail)}" y2="${Y(retail)}"/><text x="${W - R}" y="${Y(retail) - 4}" text-anchor="end">minorista ${ars(retail)}</text>` : '';
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Historial de precio">
-    ${ticks}<path class="area" d="${area}"/><path class="line" d="${d}"/>${retailLine}
-    <text x="${L}" y="${H - 6}">${dl(x0)}</text><text x="${W - R}" y="${H - 6}" text-anchor="end">hoy</text></svg>`;
+  const ticks = [y0 + pad, (y0 + y1) / 2, y1 - pad];
+  const dl = (t) => new Date(t * 60000).toLocaleDateString('es-AR', { timeZone: TZ, day: '2-digit', month: '2-digit' });
+  const last = pts[pts.length - 1];
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML = `${ticks.map((v) => `<line class="grid" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text class="axis" x="${L - 8}" y="${Y(v) + 4}" text-anchor="end">${ars(v)}</text>`).join('')}
+    <path class="area" d="${area}"/><path class="line" d="${d}"/>
+    ${retail ? `<line class="ref" x1="${L}" x2="${W - R}" y1="${Y(retail)}" y2="${Y(retail)}"/><text class="ref-label" x="${W - R}" y="${Y(retail) - 6}" text-anchor="end">web ${ars(retail)}</text>` : ''}
+    <circle class="end" cx="${X(now)}" cy="${Y(last[1])}" r="4.5"/>
+    <text class="axis" x="${L}" y="${H - 6}">${dl(x0)}</text><text class="axis" x="${W - R}" y="${H - 6}" text-anchor="end">hoy</text>
+    <line class="cross" id="cx" y1="${T}" y2="${H - B}" visibility="hidden"/><circle class="dot" id="cd" r="5" visibility="hidden"/>`;
+  const tip = $('#chartTip');
+  const cx = svg.querySelector('#cx');
+  const cd = svg.querySelector('#cd');
+  const show = (clientX) => {
+    const rect = svg.getBoundingClientRect();
+    const t = x0 + ((clientX - rect.left) / rect.width * W - L) / (W - L - R) * (x1 - x0);
+    const tt = Math.min(Math.max(t, x0), x1);
+    const v = priceAt(pts, tt) ?? pts[0][1];
+    const px = X(tt);
+    cx.setAttribute('x1', px); cx.setAttribute('x2', px); cx.setAttribute('visibility', 'visible');
+    cd.setAttribute('cx', px); cd.setAttribute('cy', Y(v)); cd.setAttribute('visibility', 'visible');
+    tip.hidden = false;
+    tip.innerHTML = `<b>${ars(v)}</b>${esc(fmtDate(tt * 60000))}`;
+    tip.style.left = `${Math.min(Math.max(px / W * rect.width, 60), rect.width - 60)}px`;
+  };
+  const hide = () => { tip.hidden = true; cx.setAttribute('visibility', 'hidden'); cd.setAttribute('visibility', 'hidden'); };
+  svg.onpointermove = (e) => show(e.clientX);
+  svg.onpointerdown = (e) => show(e.clientX);
+  svg.onpointerleave = hide;
 }
 
 let detailCtx = null;
-async function openDetail(ean, id = curId()) {
+async function openDetail(id, ean) {
   if (!srcOf(id)) return;
   const d = dataOf(id);
   if (!d.loaded) await loadSource(id);
   const p = d.byEan.get(ean);
-  const a0 = d.alerts.find((a) => a.ean === ean) || (S.opp?.items || []).find((o) => o.ean === ean && o.sourceId === id);
-  if (!p && !a0) return;
-  const dlg = $('#detail');
-  const base = p || { ean, n: a0.name, c: a0.category, s: a0.sector, e: a0.price, p: a0.basePrice || a0.price, lp: a0.listPrice, u: a0.url, im: a0.image, sl: a0.seller };
-  const isMay = kindOf(id) === 'mayorista';
-  detailCtx = { ean, id, base };
+  const opp = (S.opp?.items || []).find((o) => o.ean === ean && o.sourceId === id);
+  const alert = d.alerts.find((a) => a.ean === ean);
+  if (!p && !opp && !alert) return;
+  const v = p ? vm(p, id) : vmFrom(opp || alert, id);
+  detailCtx = { id, ean, v };
   const render = () => {
+    const isMay = v.kind === 'mayorista';
     const series = d.history?.[ean] || [];
     const r = isMay ? S.retail?.[ean] : null;
-    const price = base.e ?? base.p;
     const vals = series.map((x) => x[1]);
-    const ref = series.length ? refPrice(series) : null;
-    const q = unitOf(base);
-    const alerts = d.alerts.filter((a) => a.ean === ean).slice(0, 10);
-    const opp = (S.opp?.items || []).find((o) => o.ean === ean && o.sourceId === id);
-    // Mismo producto en las otras fuentes (sólo referencia, sin mezclar datos)
+    const pr = promoFor(v);
+    const u = unitPrice(v);
     const rows = S.manifest.map((s) => {
-      const x = dataOf(s.id).byEan.get(s.kind === 'minorista' && !isMay ? ean : ean);
-      const xp = x ? x.e ?? x.p : null;
-      return { s, xp, me: s.id === id };
-    }).filter((r2) => r2.xp);
-    const compare = rows.length > 1 ? `<table class="compare"><tbody>${rows.map(({ s, xp, me }) => `<tr class="${me ? 'me' : ''}"><td>${s.kind === 'minorista' ? '🛒 carrefour.com.ar' : `🏪 Maxi ${esc(title(s.name))}`}</td><td>${ars(xp)}</td><td>${me ? '' : `<span class="${xp > price ? 'pos' : 'neg'}">${xp > price ? '+' : ''}${pct(xp / price - 1)}</span>`}</td></tr>`).join('')}</tbody></table>` : '';
-    $('#detailBody').innerHTML = `
-      <div class="detail-head">
-        ${imgTag(base, id, false)}
+      const x = dataOf(s.id).byEan.get(ean);
+      return x ? { s, price: x.e ?? x.p, me: s.id === id } : null;
+    }).filter(Boolean);
+    if (isMay && r?.price && !rows.some((x) => x.s.kind === 'minorista')) rows.push({ s: { id: 'web', kind: 'minorista', name: 'carrefour.com.ar' }, price: r.price });
+    const tags = [...(v.promo ? [`<span class="tag tag--offer">${esc(v.promo)}</span>`] : []), ...(opp ? sigTags(opp.signals) : [])];
+    const alerts = d.alerts.filter((a) => a.ean === ean).slice(0, 6);
+    $('#sheetBody').innerHTML = `
+      <div class="d-head">
+        ${imgTag(v, '', false)}
         <div>
-          <div class="meta">${srcBadge(id)}${esc([base.s, base.c].filter(Boolean).join(' › '))}</div>
-          <h2>${esc(base.n)}</h2>
-          <div><span class="price">${ars(price)}</span>${base.pp && base.p > base.pp ? `<span class="was">${ars(base.p)}</span>` : base.lp && base.lp > price ? `<span class="was">${ars(base.lp)}</span>` : ''}</div>
-          ${base.q ? `<div class="meta">Compra mínima ${base.q} u.${base.pk ? ` · bulto de ${base.pk}` : ''}</div>` : ''}
-          ${base.pr ? `<span class="pill promo">${esc(base.pr)}</span>` : ''}
-          ${base.sl ? `<div class="meta">Vendido por ${esc(base.sl)}</div>` : ''}
+          <div class="row__meta">${srcLabel(id)}<span>${esc([v.sector, v.category].filter(Boolean).map(title).join(' › '))}</span></div>
+          <h2 id="sheetTitle">${esc(v.name)}</h2>
+          <div class="row__priceline">${priceHtml(v.price, { big: true, cu: isMay })}${v.was ? `<span class="was">${ars(v.was)}</span>` : ''}</div>
         </div>
       </div>
-      ${opp ? `<div style="margin-top:10px">${Object.entries(opp.signals).map(([k, v]) => `<span class="sig ${k}">${SIG_LABEL[k] || k} ${k === 'reventa' ? '+' : '-'}${pct(v)}</span>`).join('')}<ul class="reasons">${opp.reasons.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
-      <div class="stats">
-        <div class="stat"><div class="k">Precio habitual (30 d)</div><div class="v">${ars(ref)}</div></div>
-        <div class="stat"><div class="k">Mínimo registrado</div><div class="v">${ars(vals.length ? Math.min(...vals) : null)}</div></div>
-        <div class="stat"><div class="k">Máximo registrado</div><div class="v">${ars(vals.length ? Math.max(...vals) : null)}</div></div>
-        ${isMay && r?.price && price ? `<div class="stat"><div class="k">Margen reventa</div><div class="v ${r.price > price ? 'pos' : 'neg'}">${pct(r.price / price - 1)}</div></div>` : ''}
-        ${base.lp && base.lp > price ? `<div class="stat"><div class="k">Descuento vs ${isMay ? 'anterior' : 'lista'}</div><div class="v pos">${pct(1 - price / base.lp)}</div></div>` : ''}
-        ${q && price ? `<div class="stat"><div class="k">Precio por ${q.u}</div><div class="v">${ars(price / q.q)}</div></div>` : ''}
+      ${subLine(v).replace('row__sub', 'row__sub mono')}
+      ${tags.length ? `<div class="row__tags">${tags.join('')}</div>` : ''}
+      ${pr ? `<div class="callout">${icon('card')}<div>Hoy ${esc(DAYS_FULL[todayAR().dow])} pagando con ${pr.medio === 'prepaga' ? 'la Prepaga Carrefour' : pr.medio === 'anses' ? 'Mi Carrefour (ANSES)' : 'la tarjeta Carrefour'}: <b>${ars(v.price * (1 - pr.pct / 100))}</b> (−${pr.pct}%${pr.tope ? `, tope ${ars(pr.tope)}` : ', sin tope'}). <button type="button" class="link" data-act="promos">Condiciones</button></div></div>` : ''}
+      <div class="actions actions--detail">
+        <a class="btn btn--primary" href="${esc(isMay ? `${MAXI}p/${ean}` : fullUrl(v.u) || 'https://www.carrefour.com.ar/')}" target="_blank" rel="noopener">${icon('external')}${isMay ? 'Ver en Maxi' : 'Ver en la web'}</a>
+        <button type="button" class="btn btn--ghost" data-share>${icon('share')}Compartir</button>
+        <button type="button" class="btn btn--ghost star" data-fav="${esc(id)}|${esc(ean)}" aria-pressed="${Boolean(FAVS[`${id}|${ean}`])}">${icon('star')}Favorito</button>
       </div>
-      ${compare ? `<h3 style="font-size:14px;margin:6px 0 0">Comparación</h3>${compare}` : ''}
-      <h3 style="font-size:14px;margin:14px 0 4px">Historial de precio</h3>
-      ${chartSvg(series, r?.price)}
-      ${alerts.length ? `<h3 style="font-size:14px;margin:14px 0 6px">Alertas</h3><ul class="reasons">${alerts.map((a) => `<li><b>${TYPE_LABEL[a.type] || a.type}</b> · ${fmtDate(a.ts)} · ${ars(a.price)} — ${esc((a.reasons || [])[0] || '')}</li>`).join('')}</ul>` : ''}
-      <div class="links">
-        <a class="btn" href="${esc(linkOf(base, id))}" target="_blank" rel="noopener">${isMay ? 'Ver en Carrefour Maxi' : 'Ver en carrefour.com.ar'}</a>
-        ${r?.url ? `<a class="btn ghost" href="${esc(r.url)}" target="_blank" rel="noopener">Ver minorista</a>` : ''}
-        <button class="btn ghost" type="button" id="dlProduct">⬇️ Historial (CSV)</button>
-        ${/^\d+$/.test(ean) ? `<span class="meta" style="align-self:center">EAN ${ean}</span>` : ''}
-      </div>`;
+      ${opp?.reasons?.length ? `<div class="d-sec"><h3>Por qué es oportunidad</h3><ul class="row__why">${opp.reasons.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+      ${rows.length > 1 ? `<div class="d-sec"><h3>Comparación</h3><table class="cmp"><tbody>${rows.map((x) => `<tr class="${x.me ? 'me' : ''}"><td>${x.s.kind === 'minorista' ? 'carrefour.com.ar' : `Maxi ${esc(title(x.s.name))}`}</td><td>${ars(x.price)}</td><td>${x.me ? '' : `<span class="tag ${x.price > v.price ? 'tag--good' : 'tag--drop'}">${x.price > v.price ? '+' : '−'}${pct(Math.abs(x.price / v.price - 1))}</span>`}</td></tr>`).join('')}</tbody></table></div>` : ''}
+      <div class="d-sec"><h3>Historial de precio</h3>
+        ${chartHtml(series, r?.price)}
+        <div class="kv"><div><span>Habitual 30 días</span><b>${ars(series.length ? refPrice(series) : null)}</b></div><div><span>Mínimo</span><b>${ars(vals.length ? Math.min(...vals) : null)}</b></div><div><span>Máximo</span><b>${ars(vals.length ? Math.max(...vals) : null)}</b></div></div>
+        ${series.length ? `<details class="table"><summary>Ver cambios de precio (${series.length})</summary><table><thead><tr><th>Desde</th><th>Precio</th></tr></thead><tbody>${series.slice().reverse().map((s2) => `<tr><td>${esc(fmtDate(s2[0] * 60000, true))}</td><td>${ars(s2[1])}</td></tr>`).join('')}</tbody></table></details>` : ''}
+        <div><button type="button" class="btn btn--ghost" data-dl="product">${icon('download')}Descargar historial</button></div>
+      </div>
+      ${alerts.length ? `<div class="d-sec"><h3>Alertas</h3><ul class="row__why">${alerts.map((a) => `<li><b>${esc(TYPE[a.type]?.label || a.type)}</b> · ${esc(fmtDate(a.ts))} · ${ars(a.price)} — ${esc((a.reasons || [])[0] || '')}</li>`).join('')}</ul></div>` : ''}
+      <p class="mono">${/^\d+$/.test(ean) ? `EAN ${esc(ean)} · ` : ''}${u ? `${ars(u.price)} por ${u.u} · ` : ''}visto ${esc(ago(v.l))}</p>`;
+    if (series.length) drawChart(series, r?.price);
   };
+  openSheet('');
   render();
-  if (!dlg.open) dlg.showModal();
-  const hash = `#src=${encodeURIComponent(id)}&p=${encodeURIComponent(ean)}`;
-  if (location.hash !== hash) history.replaceState(null, '', hash);
-  await Promise.all([ensureHistory(id), isMay ? ensureRetail() : null, ensureAllProducts()]);
-  if (dlg.open && detailCtx?.ean === ean) render();
+  history.replaceState(null, '', `#src=${encodeURIComponent(id)}&p=${encodeURIComponent(ean)}`);
+  await Promise.all([ensureHistory(id), v.kind === 'mayorista' ? ensureRetail() : null]);
+  if (detailCtx?.ean === ean && !$('#sheet').hidden) render();
 }
-
-function downloadProductCsv() {
-  if (!detailCtx) return;
-  const { ean, id, base } = detailCtx;
-  const series = dataOf(id).history?.[ean] || [];
-  const s = srcOf(id);
-  const rows = historyRows(series, base.e ?? base.p).map((r) => [ean, base.n, s.kind, s.name, ...r]);
-  downloadCsv(`historial-${srcFileTag(id)}-${ean}-${today()}.csv`, ['EAN', 'Producto', 'Fuente', 'Sucursal', 'Desde', 'Hasta', 'Precio', 'Precio sin promo'], rows);
+let lastFocus = null;
+function openSheet(html) {
+  if ($('#sheet').hidden) lastFocus = document.activeElement;
+  if (html) $('#sheetBody').innerHTML = html;
+  $('#sheet').hidden = false;
+  $('#backdrop').hidden = false;
+  document.documentElement.style.overflow = 'hidden';
+  $('#sheet').scrollTop = 0;
+  $('#sheetClose').focus({ preventScroll: true });
 }
-
-async function downloadListCsv() {
-  const id = curId();
-  const isMay = kindOf(id) === 'mayorista';
-  const retail = isMay ? await ensureRetail() : {};
-  const rows = searchItems().map((p) => {
-    const price = p.e ?? p.p;
-    const x = unitOf(p);
-    const r = retail[p.ean];
-    return [p.ean, p.n, p.s, p.c, csvNum(price), csvNum(p.lp && p.lp > price ? p.lp : ''), p.pr || '', p.q || '', p.pk || '', x ? csvNum(price / x.q) : '', x ? x.u : '', isMay && r?.price ? csvNum(r.price) : '', isMay && r?.price ? csvNum((r.price / price - 1) * 100) : '', unseen(p) ? 'no visto' : '', p.l ? fmtDateFull(p.l) : ''];
-  });
-  downloadCsv(`precios-${srcFileTag(id)}-${today()}.csv`, ['EAN', 'Producto', 'Sección', 'Categoría', 'Precio', 'Precio anterior/lista', 'Promo', 'Compra mínima', 'Bulto', 'Precio por unidad', 'Unidad', 'Precio minorista', 'Margen %', 'Estado', 'Visto'], rows);
-}
-
-async function downloadHistoryCsv() {
-  const id = curId();
-  const btn = $('#dlHistory');
-  btn.disabled = true;
-  btn.textContent = 'Preparando…';
-  try {
-    const history = await ensureHistory(id);
-    const rows = [];
-    for (const p of D().products) {
-      for (const r of historyRows(history[p.ean] || [], p.e ?? p.p)) rows.push([p.ean, p.n, p.c, ...r]);
-    }
-    downloadCsv(`historial-${srcFileTag(id)}-${today()}.csv`, ['EAN', 'Producto', 'Categoría', 'Desde', 'Hasta', 'Precio', 'Precio sin promo'], rows);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '⬇️ Historial completo (CSV)';
-  }
-}
-
-function downloadOppCsv() {
-  const rows = oppItems().map((o) => [o.kind, o.branch || '', o.ean, o.name, o.category, csvNum(o.price), csvNum(o.listPrice || ''), ...['descuento', 'sucursal', 'reventa', 'bajoMayorista', 'kilo'].map((k) => (o.signals?.[k] !== undefined ? csvNum(o.signals[k] * 100) : '')), (o.reasons || []).join(' | ')]);
-  downloadCsv(`oportunidades-${S.kind}-${today()}.csv`, ['Fuente', 'Sucursal', 'EAN', 'Producto', 'Categoría', 'Precio', 'Precio anterior/lista', 'Descuento %', 'Vs sucursales %', 'Margen reventa %', 'Vs Maxi %', 'Kg vs categoría %', 'Motivos'], rows);
-}
-
-function closeDetail() {
-  $('#detail').close();
+function closeSheet() {
+  $('#sheet').hidden = true;
+  $('#backdrop').hidden = true;
+  document.documentElement.style.overflow = '';
   detailCtx = null;
-  if (/^#(p|may|min|src)=/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
+  if (/^#src=/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
+  if (lastFocus?.isConnected) lastFocus.focus({ preventScroll: true });
+}
+async function share() {
+  if (!detailCtx) return;
+  const { id, ean, v } = detailCtx;
+  const where = v.kind === 'mayorista' ? `Maxi ${title(srcOf(id)?.name || '')}` : 'carrefour.com.ar';
+  const url = `${location.origin}${location.pathname}#src=${encodeURIComponent(id)}&p=${encodeURIComponent(ean)}`;
+  const text = `${title(v.name)} — ${ars(v.price)} en ${where}`;
+  if (navigator.share) {
+    try { await navigator.share({ title: title(v.name), text, url }); } catch { /* cancelado */ }
+    return;
+  }
+  try { await navigator.clipboard.writeText(`${text}\n${url}`); toast('Enlace copiado'); } catch { toast(url); }
+}
+
+// ---------- CSV (Excel en español: separador ";" y coma decimal) ----------
+const csvNum = (n) => (n === null || n === undefined || n === '' ? '' : String(Math.round(Number(n) * 100) / 100).replace('.', ','));
+const csvCell = (x) => { const s = String(x ?? ''); return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+function downloadCsv(filename, header, rows) {
+  const text = '﻿' + [header, ...rows].map((r) => r.map(csvCell).join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  toast('Descarga lista');
+}
+const day = () => new Date().toISOString().slice(0, 10);
+const tagOf = (id) => (kindOf(id) === 'minorista' ? 'web' : `maxi-${norm(srcOf(id)?.name || '').replace(/[^a-z0-9]+/g, '-')}`);
+function historyRows(series, nowPrice) {
+  const rows = series.map((s, i) => [fmtDate(s[0] * 60000, true), series[i + 1] ? fmtDate(series[i + 1][0] * 60000, true) : 'hoy', csvNum(s[1]), csvNum(s[2] ?? '')]);
+  if (!rows.length && nowPrice) rows.push([fmtDate(Date.now(), true), 'hoy', csvNum(nowPrice), '']);
+  return rows;
+}
+async function download(kind) {
+  const id = curId();
+  if (kind === 'product' && detailCtx) {
+    const { v } = detailCtx;
+    const series = dataOf(detailCtx.id).history?.[detailCtx.ean] || [];
+    return downloadCsv(`historial-${tagOf(detailCtx.id)}-${detailCtx.ean}-${day()}.csv`, ['EAN', 'Producto', 'Desde', 'Hasta', 'Precio', 'Precio sin promo'], historyRows(series, v.price).map((r) => [detailCtx.ean, v.name, ...r]));
+  }
+  if (kind === 'list') {
+    const retail = SET.kind === 'mayorista' ? await ensureRetail() : {};
+    const rows = D().products.map((p) => vm(p, id)).filter(passes).map((v) => {
+      const u = unitPrice(v);
+      const r = retail[v.ean];
+      const pr = promoFor(v);
+      return [v.ean, v.name, v.sector, v.category, csvNum(v.price), csvNum(v.was ?? ''), v.promo || '', pr ? csvNum(v.price * (1 - pr.pct / 100)) : '', v.minQty || '', v.lim || '', u ? csvNum(u.price) : '', u?.u || '', r?.price ? csvNum(r.price) : '', r?.price ? csvNum((r.price / v.price - 1) * 100) : ''];
+    });
+    return downloadCsv(`precios-${tagOf(id)}-${day()}.csv`, ['EAN', 'Producto', 'Sección', 'Categoría', 'Precio', 'Precio anterior', 'Promo', 'Precio hoy con tu medio de pago', 'Compra mínima', 'Máximo por compra', 'Precio por unidad de medida', 'Unidad', 'Precio en la web', 'Margen %'], rows);
+  }
+  if (kind === 'history') {
+    const h = await ensureHistory(id);
+    const rows = [];
+    for (const p of D().products) for (const r of historyRows(h[p.ean] || [], p.e ?? p.p)) rows.push([p.ean, p.n, p.c, ...r]);
+    return downloadCsv(`historial-${tagOf(id)}-${day()}.csv`, ['EAN', 'Producto', 'Categoría', 'Desde', 'Hasta', 'Precio', 'Precio sin promo'], rows);
+  }
+  if (kind === 'opp') {
+    const items = await oppItems();
+    return downloadCsv(`ofertas-${tagOf(id)}-${day()}.csv`, ['EAN', 'Producto', 'Categoría', 'Precio', 'Señales', 'Motivos'], items.map((it) => [it.v.ean, it.v.name, it.v.category, csvNum(it.v.price), Object.entries(it.signals).map(([k, x]) => `${SIG[k].label} ${pct(x)}`).join(' | '), it.reasons.join(' | ')]));
+  }
 }
 
 // ---------- navegación ----------
-function setTab(tab) {
-  if (tab === 'reventa' && S.kind !== 'mayorista') tab = 'oportunidades';
-  S.tab = tab;
-  store.set('tab', tab);
-  document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
-  document.querySelectorAll('.tab').forEach((s) => s.classList.toggle('active', s.id === `tab-${tab}`));
-  renderTab();
-  window.scrollTo({ top: 0 });
+const VIEWS = { ofertas: renderOfertas, alertas: renderAlertas, buscar: renderBuscar, favoritos: renderFavoritos, ajustes: renderAjustes };
+function setView(view, { scroll = true } = {}) {
+  if (!VIEWS[view]) view = 'ofertas';
+  SET.view = view;
+  saveSettings();
+  document.body.dataset.view = view;
+  document.querySelectorAll('.view').forEach((s) => (s.hidden = s.id !== `view-${view}`));
+  document.querySelectorAll('.tab').forEach((t) => (t.dataset.view === view ? t.setAttribute('aria-current', 'page') : t.removeAttribute('aria-current')));
+  VIEWS[view]();
+  if (scroll) window.scrollTo({ top: 0 });
 }
-function renderTab() {
-  ({ oportunidades: renderOpp, alertas: renderAlerts, reventa: renderResale, bajas: renderDrops, buscar: renderSearch, estado: renderStatus })[S.tab]?.();
-}
-
-function resetFilterChips() {
-  if (S.kind !== 'mayorista' && S.alertType === 'reventa') S.alertType = '';
-  if ((S.kind !== 'mayorista' && ['sucursal', 'reventa'].includes(S.oppSig)) || (S.kind !== 'minorista' && S.oppSig === 'bajoMayorista')) S.oppSig = '';
-  document.querySelectorAll('#typeChips .chip').forEach((x) => x.classList.toggle('active', x.dataset.type === S.alertType));
-  document.querySelectorAll('#oppChips .chip').forEach((x) => x.classList.toggle('active', x.dataset.sig === S.oppSig));
-}
-
-async function setView(kind, branch = S.branch) {
-  S.kind = kind === 'minorista' ? 'minorista' : 'mayorista';
-  if (branch && srcOf(branch)) S.branch = branch;
-  store.set('source', S.kind);
-  if (S.branch) store.set('branch', S.branch);
-  document.body.dataset.source = S.kind;
-  document.querySelectorAll('.sources button').forEach((b) => {
-    const on = b.dataset.source === S.kind;
-    b.classList.toggle('active', on);
-    b.setAttribute('aria-checked', String(on));
-  });
-  Object.keys(S.limits).forEach((k) => (S.limits[k] = PAGE));
-  resetFilterChips();
+async function setSource(kind, branch) {
+  SET.kind = kind;
+  if (branch && srcOf(branch)) SET.branch = branch;
+  saveSettings();
   if (curId() && !D().loaded) await loadSource(curId());
-  renderBranches();
+  renderHeader();
   fillSectors();
-  updateStatusPill();
-  setTab(S.tab);
+  setView(SET.view, { scroll: false });
 }
-
-function fillSectors() {
-  const sectors = [...new Set(D().products.map((p) => p.s).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
-  for (const id of ['#resaleSector', '#dropSector', '#searchSector']) {
-    const sel = $(id);
-    const cur = sel.value;
-    sel.innerHTML = '<option value="">Todas las secciones</option>' + sectors.map((s) => `<option>${esc(s)}</option>`).join('');
-    sel.value = sectors.includes(cur) ? cur : '';
-  }
+function applyTheme() {
+  if (SET.theme === 'system') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = SET.theme;
 }
-
-function debounce(fn, ms = 200) {
-  let t;
-  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
-}
-
+const debounce = (fn, ms = 180) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 async function routeHash() {
-  const h = location.hash.slice(1);
-  if (!h) return;
-  const qs = new URLSearchParams(h.replace(/^(may|min|p)=/, (m, k) => `legacy=${k}&p=`));
-  let id = qs.get('src');
-  const ean = qs.get('p');
-  if (!ean) return;
-  if (!id) id = qs.get('legacy') === 'min' ? minSrc()?.id : mayList()[0]?.id;
+  const m = location.hash.match(/^#src=([^&]+)&p=([\w-]+)/);
+  if (!m) return;
+  const id = decodeURIComponent(m[1]);
   if (!srcOf(id)) return;
   const k = kindOf(id);
-  if (k !== S.kind || (k === 'mayorista' && id !== S.branch)) await setView(k, k === 'mayorista' ? id : S.branch);
-  openDetail(ean, id);
+  if (k !== SET.kind || (k === 'mayorista' && id !== SET.branch)) await setSource(k, k === 'mayorista' ? id : SET.branch);
+  openDetail(id, m[2]);
 }
 
 function bind() {
-  document.querySelectorAll('.tabs [data-tab], #statusPill').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
-  document.querySelectorAll('.sources [data-source]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.source)));
-  $('#branches').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-branch]');
-    if (b) setView('mayorista', b.dataset.branch);
+  document.querySelectorAll('.switch__btn').forEach((b) => b.addEventListener('click', () => setSource(b.dataset.kind)));
+  $('#branches').addEventListener('click', (e) => { const b = e.target.closest('[data-branch]'); if (b) setSource('mayorista', b.dataset.branch); });
+  document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => setView(t.dataset.view)));
+  $('#statusBtn').addEventListener('click', () => { setView('ajustes'); setTimeout(() => $('#g-estado')?.scrollIntoView({ block: 'start' }), 30); });
+  $('#todayCard').addEventListener('click', openPromos);
+  $('#oppChips').addEventListener('click', (e) => { const c = e.target.closest('[data-sig]'); if (c) { S.oppSig = c.dataset.sig; renderOfertas(); } });
+  $('#alertChips').addEventListener('click', (e) => { const c = e.target.closest('[data-type]'); if (c) { S.alertType = c.dataset.type; renderAlertas(); } });
+  $('#oppSearch').addEventListener('input', debounce(renderOfertas));
+  $('#oppSort').addEventListener('change', renderOfertas);
+  $('#alertSearch').addEventListener('input', debounce(renderAlertas));
+  $('#alertRange').addEventListener('change', renderAlertas);
+  $('#q').addEventListener('input', debounce(renderBuscar, 220));
+  $('#searchSector').addEventListener('change', renderBuscar);
+  $('#searchSort').addEventListener('change', renderBuscar);
+  $('#backdrop').addEventListener('click', closeSheet);
+  $('#sheetClose').addEventListener('click', closeSheet);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('#sheet').hidden) closeSheet();
+    // Foco atrapado dentro de la hoja abierta
+    if (e.key === 'Tab' && !$('#sheet').hidden) {
+      const f = [...$('#sheet').querySelectorAll('a[href], button:not([disabled]), input, select, summary, [tabindex="0"]')].filter((x) => x.offsetParent !== null);
+      if (!f.length) return;
+      const first = f[0];
+      const last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
   });
-  $('#typeChips').addEventListener('click', (e) => {
-    const c = e.target.closest('.chip');
-    if (!c) return;
-    S.alertType = c.dataset.type;
-    resetFilterChips();
-    S.limits.alertas = PAGE;
-    renderAlerts();
+  document.addEventListener('click', async (e) => {
+    const fav = e.target.closest('[data-fav]');
+    if (fav) { e.stopPropagation(); toggleFav(fav.dataset.fav); return; }
+    if (e.target.closest('[data-share]')) return share();
+    const dl = e.target.closest('[data-dl]');
+    if (dl) return download(dl.dataset.dl);
+    const go = e.target.closest('[data-goto]');
+    if (go) { setView('ajustes'); setTimeout(() => $(`#g-${go.dataset.goto}`)?.scrollIntoView({ block: 'start' }), 30); return; }
+    const act = e.target.closest('[data-act]');
+    if (act) {
+      if (act.dataset.act === 'promos') return openPromos();
+      if (act.dataset.act === 'showall') { SET.hidden[SET.kind] = []; saveSettings(); fillSectors(); return renderAjustes(); }
+      if (act.dataset.act === 'reset') { const keep = { kind: SET.kind, branch: SET.branch, view: 'ajustes' }; Object.assign(SET, structuredClone(DEFAULTS), keep); saveSettings(); applyTheme(); fillSectors(); renderAjustes(); return toast('Ajustes restablecidos'); }
+    }
+    const cat = e.target.closest('[data-cat]');
+    if (cat) {
+      const list = new Set(SET.hidden[SET.kind] || []);
+      list.has(cat.dataset.cat) ? list.delete(cat.dataset.cat) : list.add(cat.dataset.cat);
+      SET.hidden[SET.kind] = [...list];
+      saveSettings();
+      cat.setAttribute('aria-pressed', String(!list.has(cat.dataset.cat)));
+      fillSectors();
+      return;
+    }
+    const th = e.target.closest('[data-theme-set]');
+    if (th) { SET.theme = th.dataset.themeSet; saveSettings(); applyTheme(); document.querySelectorAll('[data-theme-set]').forEach((b) => b.setAttribute('aria-pressed', String(b === th))); return; }
+    const cp = e.target.closest('[data-copy]');
+    if (cp) { const t = $(`#${cp.dataset.copy}`)?.textContent || ''; try { await navigator.clipboard.writeText(t); toast('Copiado'); } catch { getSelection().selectAllChildren($(`#${cp.dataset.copy}`)); toast('Seleccionado: copialo'); } return; }
+    const row = e.target.closest('.row[data-open]');
+    if (row) { const [id, ean] = row.dataset.open.split('|'); openDetail(id, ean); }
   });
-  $('#oppChips').addEventListener('click', (e) => {
-    const c = e.target.closest('.chip');
-    if (!c) return;
-    S.oppSig = c.dataset.sig;
-    resetFilterChips();
-    S.limits.oportunidades = PAGE;
-    renderOpp();
+  document.addEventListener('input', (e) => {
+    const t = e.target;
+    if (t.id === 's-max') { SET.maxPrice = Number(t.value); $('#s-max-o').textContent = ars(SET.maxPrice); saveSettings(); }
+    if (t.id === 's-pct') { SET.oppMinPct = Number(t.value); $('#s-pct-o').textContent = `${SET.oppMinPct}%`; saveSettings(); }
+    if (t.id === 's-mg') { SET.oppMinMargin = Number(t.value); $('#s-mg-o').textContent = `${SET.oppMinMargin}%`; saveSettings(); }
   });
-  const on = (sel, ev, fn) => $(sel).addEventListener(ev, fn);
-  on('#oppSearch', 'input', debounce(renderOpp));
-  on('#oppScope', 'change', renderOpp);
-  on('#alertSearch', 'input', debounce(renderAlerts));
-  on('#alertRange', 'change', renderAlerts);
-  on('#marginMin', 'input', debounce(renderResale, 120));
-  on('#resaleSearch', 'input', debounce(renderResale));
-  on('#resaleSector', 'change', renderResale);
-  on('#dropWindow', 'change', renderDrops);
-  on('#dropSector', 'change', renderDrops);
-  on('#q', 'input', debounce(() => { S.limits.buscar = PAGE; renderSearch(); }));
-  on('#searchSector', 'change', renderSearch);
-  on('#searchSort', 'change', renderSearch);
-  on('#dlList', 'click', downloadListCsv);
-  on('#dlHistory', 'click', downloadHistoryCsv);
-  on('#dlOpp', 'click', downloadOppCsv);
-  document.addEventListener('click', (e) => {
-    if (e.target.closest('#dlProduct')) { downloadProductCsv(); return; }
-    const more = e.target.closest('[data-more]');
-    if (more) { S.limits[more.dataset.more] += PAGE * 2; renderTab(); return; }
-    const card = e.target.closest('.card[data-ean]');
-    if (card) openDetail(card.dataset.ean, card.dataset.src || curId());
+  document.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.id === 's-minq') { SET.maxMinQty = Number(t.value); saveSettings(); }
+    if (t.id === 's-unseen') { SET.hideUnseen = t.checked; saveSettings(); }
+    if (t.id?.startsWith('m-')) { SET.medios[t.id.slice(2)] = t.checked; saveSettings(); renderToday(); }
   });
-  on('#closeDetail', 'click', closeDetail);
-  $('#detail').addEventListener('click', (e) => { if (e.target.id === 'detail') closeDetail(); });
-  $('#detail').addEventListener('close', () => { if (/^#(p|may|min|src)=/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search); });
   window.addEventListener('hashchange', routeHash);
+  window.addEventListener('resize', debounce(() => { if (detailCtx && !$('#sheet').hidden) { const s = dataOf(detailCtx.id).history?.[detailCtx.ean]; if (s?.length) drawChart(s, S.retail?.[detailCtx.ean]?.price); } }, 150));
 }
 
 (async function init() {
+  applyTheme();
   bind();
   await loadAll();
-  let kind = store.get('source', '');
-  if (!['mayorista', 'minorista'].includes(kind)) kind = mayList().length ? 'mayorista' : 'minorista';
-  if (kind === 'mayorista' && !mayList().length && minSrc()) kind = 'minorista';
-  const tab = store.get('tab', 'oportunidades');
-  S.tab = document.getElementById(`tab-${tab}`) ? tab : 'oportunidades';
-  await setView(kind);
+  renderHeader();
+  fillSectors();
+  setView(SET.view || 'ofertas', { scroll: false });
   routeHash();
-  // refresco automático cada 5 minutos
   setInterval(async () => {
+    if (!$('#sheet').hidden) return;
     S.retail = null;
     await loadAll();
+    renderHeader();
     fillSectors();
-    updateStatusPill();
-    renderTab();
+    VIEWS[SET.view]?.();
   }, 5 * 60e3);
-  setInterval(updateStatusPill, 60e3);
+  setInterval(renderHeader, 60e3);
 })();

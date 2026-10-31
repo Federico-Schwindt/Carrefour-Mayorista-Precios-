@@ -13,9 +13,24 @@ async function getTree(depth = 3) {
   return request(`${API()}/category/tree/${depth}`, { expect: 'json', retries: 3, timeoutMs: 30000 });
 }
 
+const spec = (p, key) => (Array.isArray(p[key]) ? p[key][0] : p[key]) ?? null;
+
+/** Precio oficial por kg/l: "($5,700.00 x 1 K.)" + pricePerUnit = 5700 */
+function officialUnit(p) {
+  const label = String(spec(p, 'Precio x unidad') || '');
+  const ppu = Number(spec(p, 'pricePerUnit'));
+  if (!(ppu > 0)) return {};
+  if (/x\s*1\s*k/i.test(label)) return { unitPrice: ppu, unit: 'kg' };
+  if (/x\s*1\s*l/i.test(label)) return { unitPrice: ppu, unit: 'l' };
+  return {};
+}
+
 /** Convierte un producto VTEX en el formato común del monitor. */
 export function normalizeRetailProduct(p) {
   const out = [];
+  // "Cantidad Maxima Permitida" = tope de unidades por compra en carrefour.com.ar
+  const limit = Number(spec(p, 'Cantidad Maxima Permitida')) || null;
+  const unitInfo = officialUnit(p);
   const cats = (p.categories || []).slice().sort((a, b) => b.length - a.length)[0] || '';
   const parts = cats.split('/').filter(Boolean);
   for (const it of p.items || []) {
@@ -40,6 +55,8 @@ export function normalizeRetailProduct(p) {
       url: p.link || (p.linkText ? `https://www.carrefour.com.ar/${p.linkText}/p` : null),
       image: it.images?.[0]?.imageUrl?.split('?')[0] || null,
       seller: best.sellerId !== '1' ? best.seller : null,
+      limit: p.items.length === 1 ? limit : null,
+      ...(p.items.length === 1 ? unitInfo : {}),
       private: false,
     });
   }

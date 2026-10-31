@@ -3,6 +3,7 @@ import { config } from './config.js';
 import { request } from './http.js';
 import { TYPE_LABEL } from './detect.js';
 import { log } from './log.js';
+import { promoFor, loadPromos } from './promos.js';
 
 const EMOJI = { error: '🚨', oportunidad: '🔥', reventa: '💰', baja: '📉', minimo: '🏆', sistema: '⚙️' };
 const ars = (n) => (n || n === 0 ? `$${Math.round(n).toLocaleString('es-AR')}` : '—');
@@ -36,6 +37,8 @@ export function formatAlert(a, html = true) {
   if (a.prev && a.prev !== a.price) priceLine += ` (antes ${ars(a.prev)}, ${a.dropPct > 0 ? '-' : '+'}${Math.abs(Math.round(a.dropPct * 100))}%)`;
   lines.push(priceLine);
   if (a.listPrice && a.listPrice > a.price) lines.push(`🏷️ Precio de lista ${ars(a.listPrice)}`);
+  const pr = promoFor({ ...a, price: a.price }, { promos: loadPromos().promos, medios: ['prepaga'] });
+  if (pr) lines.push(`💳 Hoy con ${pr.medio === 'prepaga' ? 'Prepaga Carrefour' : 'tarjeta Carrefour'}: ${ars(a.price * (1 - pr.pct / 100))} (−${pr.pct}%)`);
   if (a.seller) lines.push(`🏬 Vendido por ${esc(a.seller)}`);
   if (a.retail) lines.push(`🛒 Minorista ${ars(a.retail)}${a.margin !== undefined && a.margin !== null ? ` → margen ${Math.round(a.margin * 100)}%` : ''}`);
   const extra = [a.promo || '', a.minQty ? `compra mínima ${a.minQty} u.` : ''].filter(Boolean).join(' · ');

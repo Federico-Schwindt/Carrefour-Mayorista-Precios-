@@ -143,6 +143,26 @@ El monitor detecta solo de qué sucursal es cada cookie. Si una vence, las demá
 **Actions → Monitor de precios → Run workflow.** Desde ahí corre solo cada 30 minutos.
 La primera corrida guarda la base; las alertas empiezan desde la segunda.
 
+### Que la sesión no se corte (recomendado)
+La sesión de Carrefour Maxi **vence si pasa ~25 minutos sin uso**. El repo trae un workflow que la toca cada 5 minutos,
+pero los horarios de GitHub son “de mejor esfuerzo”: a veces se atrasan o tardan horas en arrancar en un repo nuevo.
+Para que sea confiable, que un servicio externo gratuito dispare los workflows a horario:
+
+1. **Token de GitHub** (una vez): GitHub → foto → *Settings* → *Developer settings* → *Personal access tokens* →
+   *Fine-grained tokens* → *Generate new token*. Nombre: `cron`. *Repository access*: **Only select repositories** →
+   este repo. *Permissions* → *Actions*: **Read and write**. Vencimiento: 1 año. Copiá el token.
+2. Creá una cuenta gratis en **[cron-job.org](https://cron-job.org)** y armá dos trabajos (*Create cronjob*):
+
+| | Mantener sesión | Lectura de precios |
+|---|---|---|
+| URL | `https://api.github.com/repos/kiwiplusapp/Carrefour-Mayorista-Precios-/actions/workflows/keepalive.yml/dispatches` | igual pero con `monitor.yml` |
+| Cada | 5 minutos | 30 minutos |
+| *Advanced* → Método | `POST` | `POST` |
+| Headers | `Authorization: Bearer TU_TOKEN` · `Accept: application/vnd.github+json` | iguales |
+| Body | `{"ref":"main"}` | `{"ref":"main"}` |
+
+Con eso la sesión se mantiene viva y las lecturas salen a horario aunque GitHub demore sus cron.
+
 ### Cuando se vence la sesión
 Te llega un aviso **“Se venció la sesión de Carrefour Maxi”** y la web lo muestra arriba.
 Repetí el paso 2 y actualizá el secret `CF_COOKIE`. El monitor sigue solo en la próxima corrida.
