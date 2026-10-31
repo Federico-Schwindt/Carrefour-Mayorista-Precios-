@@ -20,7 +20,7 @@ export function channelsConfigured() {
 
 export const productUrl = (ean) => `${config.baseUrl}p/${ean}`;
 export const imageUrl = (ean) => `https://tupedido.carrefour.com.ar/imagenesPDA/${ean}.jpg`;
-export const SOURCE_TAG = { mayorista: '🏪 MAYORISTA · Carrefour Maxi', minorista: '🛒 MINORISTA · carrefour.com.ar' };
+export const SOURCE_TAG = { mayorista: '🏪 MAYORISTA · Carrefour Maxi', minorista: `🛒 MINORISTA · ${config.minorista.storeName}` };
 const isMin = (a) => a.source === 'minorista';
 const tagOf = (a) => (isMin(a) ? SOURCE_TAG.minorista : a.branch ? `🏪 MAYORISTA · Maxi ${a.branch}` : SOURCE_TAG.mayorista);
 const shortTag = (a) => (isMin(a) ? '🛒 MINORISTA' : a.branch ? `🏪 MAYORISTA ${a.branch}` : '🏪 MAYORISTA');
@@ -46,7 +46,7 @@ export function formatAlert(a, html = true) {
   for (const r of a.reasons || []) lines.push(`• ${esc(r)}`);
   lines.push(`📂 ${esc(a.category || a.section || '')}`);
   if (html) {
-    const links = [`<a href="${esc(linkOf(a))}">${isMin(a) ? 'Ver en carrefour.com.ar' : 'Ver en Carrefour Maxi'}</a>`];
+    const links = [`<a href="${esc(linkOf(a))}">${isMin(a) ? `Ver en la web (${config.minorista.storeName})` : 'Ver en Carrefour Maxi'}</a>`];
     if (a.retailUrl) links.push(`<a href="${esc(a.retailUrl)}">Minorista</a>`);
     if (config.dashboardUrl) links.push(`<a href="${config.dashboardUrl}#src=${encodeURIComponent(a.sourceId || (isMin(a) ? 'min' : 'may'))}&p=${a.ean}">Historial</a>`);
     lines.push(links.join(' · '));

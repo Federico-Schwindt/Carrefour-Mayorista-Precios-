@@ -115,7 +115,7 @@ Opcionales: `NTFY_TOPIC` (avisos push con la app **ntfy**, sin registrarse: eleg
 | `NOTIFY_TYPES` | `error,reventa,baja,minimo` | Qué tipos mandan push (el resto sólo en la web) |
 | `NOTIFY_MAX_PER_RUN` | `25` | Tope de avisos por corrida |
 | `MIN_ENABLED` | `true` | Activar el monitor minorista |
-| `minorista_tienda` (en `ajustes.json`) | `carrefourar0240` · Hiper Gualeguaychú | Tienda cuyos precios se leen: cada tienda de carrefour.com.ar tiene los suyos. Vacío = precio online general |
+| `minorista_tienda` (en `ajustes.json`) | `carrefourar0240` · Hiper Gualeguaychú | Tienda cuyos precios se leen SIEMPRE (nunca el precio online general de carrefour.com.ar). Si no se puede leer, se conservan los últimos precios de esa tienda |
 | `MIN_CATEGORIES` | `161,222,255,292,336,347,359,402,451,471` | Rubros de carrefour.com.ar: supermercado (ver `src/config.js`; sumá `3` para Tecnología, `71` Hogar…) |
 | `MIN_ALERT_DROP_PCT` | `0.3` | Baja mínima para “baja fuerte” en minorista |
 | `MIN_NOTIFY_TYPES` | `error,baja,minimo` | Qué alertas minoristas mandan push |

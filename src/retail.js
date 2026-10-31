@@ -1,34 +1,15 @@
-// Precio minorista en carrefour.com.ar (VTEX, API pública) por EAN.
+// Precio minorista de la tienda Hiper Gualeguaychú por EAN.
 // Sirve para estimar el margen de reventa y detectar errores groseros.
 import { config } from './config.js';
 import { request, mapLimit, sleep } from './http.js';
 import { lookupStorePrice } from './retail-catalog.js';
 
 export async function lookupRetail(ean) {
-  if (config.minorista.store) {
-    const n = await lookupStorePrice(ean);
-    const ts = new Date().toISOString();
-    if (!n) return { found: false, ts };
-    return { found: true, available: true, price: n.price, listPrice: n.listPrice, name: n.name, url: n.url, ts };
-  }
-  const url = `${config.retailApi}?fq=alternateIds_Ean:${encodeURIComponent(ean)}`;
-  const data = await request(url, { expect: 'json', retries: 2, timeoutMs: 20000 });
-  const now = new Date().toISOString();
-  if (!Array.isArray(data) || !data.length) return { found: false, ts: now };
-  const prod = data[0];
-  const item = (prod.items || []).find((i) => i.ean === ean) || prod.items?.[0];
-  const offers = (item?.sellers || []).map((s) => s.commertialOffer).filter(Boolean);
-  const best = offers.filter((o) => o.Price > 0).sort((a, b) => a.Price - b.Price)[0];
-  if (!best) return { found: true, available: false, ts: now, name: prod.productName, url: prod.link };
-  return {
-    found: true,
-    available: (best.AvailableQuantity ?? 0) > 0,
-    price: best.Price,
-    listPrice: best.ListPrice > best.Price ? best.ListPrice : null,
-    name: prod.productName,
-    url: prod.link,
-    ts: now,
-  };
+  // Siempre el precio de la tienda de Gualeguaychú (nunca el nacional)
+  const n = await lookupStorePrice(ean);
+  const ts = new Date().toISOString();
+  if (!n) return { found: false, ts };
+  return { found: true, available: true, price: n.price, listPrice: n.listPrice, name: n.name, url: n.url, ts };
 }
 
 /**

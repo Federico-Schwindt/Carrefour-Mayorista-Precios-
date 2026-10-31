@@ -76,7 +76,7 @@ export const config = {
     dropPct: num('ALERT_DROP_PCT', pctOf(AV.baja_fuerte_mayorista_pct, 0.15)),
     // Posible error: precio <= X * referencia (mediana 30 días)
     errorRatio: num('ALERT_ERROR_RATIO', 1 - pctOf(AV.posible_error_pct, 0.5)),
-    // Posible error: precio <= X * precio minorista de carrefour.com.ar
+    // Posible error: precio <= X * precio minorista de la tienda (Gualeguaychú)
     errorRetailRatio: num('ALERT_ERROR_RETAIL_RATIO', 0.45),
     // Posible error: precio <= X * precio de lista (tachado)
     listRatio: num('ALERT_LIST_RATIO', 0.35),
@@ -90,6 +90,8 @@ export const config = {
     minVsMedianPct: num('ALERT_MIN_VS_MEDIAN_PCT', 0.08),
     // Reventa: margen bruto vs precio minorista >= X
     resaleMargin: num('ALERT_RESALE_MARGIN', pctOf(AV.margen_reventa_pct, 0.35)),
+    // Nombre de la tienda minorista para los textos de las alertas
+    retailName: str('MIN_STORE_NAME', AJ.minorista_tienda?.nombre || 'Hiper Gualeguaychú'),
     // No alertar productos más baratos que esto (ruido)
     minPrice: num('ALERT_MIN_PRICE', 300),
     // Repetir alerta del mismo producto/tipo sólo pasado este tiempo o si baja X% más
@@ -108,9 +110,8 @@ export const config = {
   // ---- MINORISTA: catálogo completo de carrefour.com.ar (público, sin login) ----
   minorista: {
     enabled: bool('MIN_ENABLED', true),
-    // Tienda cuyos precios se leen (cada tienda de carrefour.com.ar tiene los suyos).
-    // Vacío = precio online general.
-    store: process.env.MIN_STORE !== undefined ? str('MIN_STORE') : AJ.minorista_tienda?.id ?? 'carrefourar0240',
+    // Tienda cuyos precios se leen SIEMPRE (cada tienda tiene los suyos). Nunca el precio nacional.
+    store: str('MIN_STORE', AJ.minorista_tienda?.id || 'carrefourar0240'),
     storeName: str('MIN_STORE_NAME', AJ.minorista_tienda?.nombre || 'Hiper Gualeguaychú'),
     // Rubros (id de categoría VTEX). Por defecto: supermercado (sin tecnología).
     // 161 Almacén · 222 Desayuno · 255 Bebidas · 292 Lácteos · 336 Panadería · 347 Congelados
@@ -149,7 +150,7 @@ export const config = {
     show: {
       descuento: num('OPP_SHOW_DESCUENTO', 0.3), // vs precio tachado / de lista
       sucursal: num('OPP_SHOW_SUCURSAL', 0.15), // más barato que la mediana de otras sucursales
-      reventa: num('OPP_SHOW_REVENTA', 0.35), // margen vs carrefour.com.ar
+      reventa: num('OPP_SHOW_REVENTA', 0.35), // margen vs la tienda minorista
       bajoMayorista: num('OPP_SHOW_BAJO_MAYORISTA', 0.1), // minorista más barato que Maxi
       kilo: num('OPP_SHOW_KILO', 0.45), // precio por kg/l <= X * mediana de la categoría
       maxDescuento: num('OPP_MAX_DESCUENTO', 0.85), // más que esto = precio de lista dudoso

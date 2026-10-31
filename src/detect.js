@@ -57,7 +57,7 @@ export function seriesStats(series = [], nowMin) {
 /** Cantidad comparable (sólo kg o l; nunca "unidades", que no son comparables entre sí) */
 export function unitQty(p, multipack = true) {
   if (NON_UNIT_SECTORS.test(p.sector || '')) return null;
-  // carrefour.com.ar informa el precio oficial por kg/l: es más confiable que leer el nombre
+  // el minorista trae el gramaje oficial: es más confiable que leer el nombre
   if (p.unitPrice > 0 && (p.unit === 'kg' || p.unit === 'l') && p.price > 0) return { qty: p.price / p.unitPrice, unit: p.unit };
   const q = parseQuantity(p.name, { multipack });
   return q && q.unit !== 'u' && q.qty > 0 ? q : null;
@@ -128,7 +128,7 @@ export function evaluateProduct(p, ctx) {
   }
   if (retailOk && retail.available !== false && eff <= retail.price * rules.errorRetailRatio && (wentDown || ctx.retailFresh)) {
     hits.add('error');
-    reasons.push(`Cuesta ${pct(1 - eff / retail.price)} menos que en Carrefour minorista (${ars(retail.price)})`);
+    reasons.push(`Cuesta ${pct(1 - eff / retail.price)} menos que en ${rules.retailName || 'el minorista'} (${ars(retail.price)})`);
   }
   if (p.listPrice && rules.listRatio && wentDown && eff <= p.listPrice * rules.listRatio) {
     hits.add('error');
@@ -157,14 +157,14 @@ export function evaluateProduct(p, ctx) {
     reasons.push(`Precio más bajo registrado (mín. anterior ${ars(stats.min)}, habitual ${ars(stats.ref)})`);
   }
 
-  // --- 4. Margen de reventa vs. Carrefour minorista ---
+  // --- 4. Margen de reventa vs. la tienda minorista (Gualeguaychú) ---
   if (retailOk && retail.available !== false && m.margin >= rules.resaleMargin) {
     const prevMargin = stats.prev ? retail.price / stats.prev - 1 : null;
     const crossed = wentDown && (prevMargin === null || prevMargin < rules.resaleMargin);
     const exceptional = m.margin >= rules.resaleMargin * 1.7 && (wentDown || ctx.retailFresh);
     if (crossed || exceptional) {
       hits.add('reventa');
-      reasons.push(`Margen ${pct(m.margin)}: minorista ${ars(retail.price)} vs mayorista ${ars(eff)}`);
+      reasons.push(`Margen ${pct(m.margin)}: en ${rules.retailName || 'el minorista'} sale ${ars(retail.price)}, en Maxi ${ars(eff)}`);
     }
   }
 
@@ -259,7 +259,7 @@ export const OPP_LABEL = {
 
 /**
  * datasets: [{ src: {id, kind, name}, current: Map<ean, product> }]
- * retail:   { ean: {price, available, url} }  (precios de carrefour.com.ar)
+ * retail:   { ean: {price, available, url} }  (precios de la tienda Hiper Gualeguaychú)
  * opp:      config.opp ;  rules: config.rules
  * Devuelve una lista ordenada por puntaje.
  */
@@ -316,7 +316,7 @@ export function findOpportunities({ datasets, retail = {}, opp, rules }) {
           const v = r.price / eff - 1;
           if (v >= show.reventa) {
             sig.reventa = v;
-            reasons.push(`Margen ${pct(v)}: en carrefour.com.ar sale ${ars(r.price)}`);
+            reasons.push(`Margen ${pct(v)}: en ${rules.retailName || 'el minorista'} sale ${ars(r.price)}`);
           }
         }
       } else {

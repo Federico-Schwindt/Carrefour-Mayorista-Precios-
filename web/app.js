@@ -1,5 +1,5 @@
 // Radar Maxi — web estática. Lee los JSON de ./data/ que genera el monitor.
-// Fuentes separadas: mayorista (una por sucursal Maxi) y minorista (carrefour.com.ar).
+// Fuentes separadas: mayorista (una por sucursal Maxi) y minorista (tienda Hiper Gualeguaychú).
 const DATA = './data/';
 const MAXI = 'https://comerciante.carrefour.com.ar/';
 const CHUNK = 40;
@@ -23,7 +23,7 @@ const TYPE = {
 };
 const LEGACY = [
   { id: 'may-legacy', kind: 'mayorista', name: 'Carrefour Maxi', files: { products: 'products.json', alerts: 'alerts.json', history: 'history.json' } },
-  { id: 'min', kind: 'minorista', name: 'carrefour.com.ar', files: { products: 'min-products.json', alerts: 'min-alerts.json', history: 'min-history.json' } },
+  { id: 'min', kind: 'minorista', name: 'Hiper Gualeguaychú', files: { products: 'min-products.json', alerts: 'min-alerts.json', history: 'min-history.json' } },
 ];
 
 // ---------- almacenamiento local (sólo comodidades de este navegador) ----------
@@ -57,6 +57,8 @@ const S = { manifest: [], data: {}, status: null, opp: null, retail: null, promo
 const srcOf = (id) => S.manifest.find((s) => s.id === id);
 const mayList = () => S.manifest.filter((s) => s.kind === 'mayorista');
 const minSrc = () => S.manifest.find((s) => s.kind === 'minorista');
+// Nombre de la tienda minorista (siempre Hiper Gualeguaychú, nunca el precio online general)
+const minName = () => { const n = dataOf(minSrc()?.id || 'min').store || minSrc()?.name; return n && !/carrefour\.com/i.test(n) ? n : 'Hiper Gualeguaychú'; };
 const kindOf = (id) => srcOf(id)?.kind || (id === 'min' ? 'minorista' : 'mayorista');
 const curId = () => (SET.kind === 'minorista' ? minSrc()?.id : SET.branch);
 const dataOf = (id) => S.data[id] || (S.data[id] = blank());
@@ -211,7 +213,7 @@ function priceHtml(n, { big = false, cu = true } = {}) {
 }
 function srcLabel(id) {
   const s = srcOf(id);
-  if (kindOf(id) === 'minorista') return '<span class="src src--min">carrefour.com.ar</span>';
+  if (kindOf(id) === 'minorista') return `<span class="src src--min">${esc(minName())}</span>`;
   return `<span class="src src--may">Maxi ${esc(title(s?.name || ''))}</span>`;
 }
 function subLine(v) {
@@ -359,7 +361,7 @@ function renderHeader() {
     : '';
   const st = S.status?.sources?.[curId()];
   const n = st?.products ? ` · ${fmt(st.products)} productos` : '';
-  $('#subline').textContent = SET.kind === 'mayorista' ? `Maxi ${title(srcOf(SET.branch)?.name || '')}${n}` : `carrefour.com.ar · ${D().store || 'precio online'}${n}`;
+  $('#subline').textContent = SET.kind === 'mayorista' ? `Maxi ${title(srcOf(SET.branch)?.name || '')}${n}` : `Minorista · ${minName()}${n}`;
   const btn = $('#statusBtn');
   btn.classList.remove('is-ok', 'is-warn', 'is-bad');
   if (!st?.lastSuccess) {
@@ -383,7 +385,7 @@ function renderNotice() {
     if (!mayList().length) html = `<b>Mayorista sin datos.</b> Falta cargar la cookie de Carrefour Maxi. <button type="button" class="link" data-goto="sesiones">Ver cómo</button>`;
     else if (bad || st?.ok === false) html = `<b>Se venció la sesión de Maxi ${esc(title(srcOf(id)?.name || ''))}.</b> Ves precios de ${esc(ago(st?.lastSuccess))}. <button type="button" class="link" data-goto="sesiones">Cómo renovarla</button>`;
   } else if (st?.ok === false) {
-    html = `<b>La última lectura de carrefour.com.ar falló.</b> Ves precios de ${esc(ago(st.lastSuccess))}.`;
+    html = `<b>La última lectura de ${esc(minName())} falló.</b> Ves precios de ${esc(ago(st.lastSuccess))}.`;
   }
   if (!html && st?.lastSuccess && (Date.now() - Date.parse(st.lastSuccess)) / 60000 > (S.status.intervalMinutes || 30) * 3) {
     html = `<b>Los precios no se actualizan desde ${esc(ago(st.lastSuccess))}.</b> Revisá el estado del monitor en Ajustes.`;
@@ -458,7 +460,7 @@ function renderToday() {
   const best = (d) => activePromos(kind, d).sort((a, b) => b.pct - a.pct)[0];
   const now = best(dow);
   $('#todayDay').textContent = DAYS[dow];
-  const where = kind === 'mayorista' ? 'Carrefour Maxi' : 'carrefour.com.ar';
+  const where = kind === 'mayorista' ? 'Carrefour Maxi' : esc(minName());
   if (now) {
     $('#todayText').innerHTML = `<b>${now.pct}% con ${esc(medioName(now.medio))}</b> en ${where}. ${now.acumulable ? 'Se suma a las ofertas' : 'No se suma a otras ofertas'}${now.tope ? `, tope ${ars(now.tope)}` : ', sin tope'}.`;
   } else {
@@ -484,7 +486,7 @@ function openPromos() {
     <div class="d-sec"><h3>Descuentos por día</h3><h2 id="sheetTitle" style="margin:0;font-size:20px">Cuándo conviene comprar</h2>
       <p class="lead" style="font-size:14px">Según tus medios de pago, la web muestra el <b>precio de hoy</b> con el descuento ya aplicado. Elegí tus medios de pago en Ajustes.</p></div>
     <div class="group"><h2>Carrefour Maxi</h2><div class="group__box">${list.filter((p) => p.fuentes.includes('mayorista')).map(row).join('')}</div></div>
-    <div class="group"><h2>carrefour.com.ar</h2><div class="group__box">${list.filter((p) => p.fuentes.includes('minorista')).map(row).join('')}</div></div>
+    <div class="group"><h2>Carrefour minorista</h2><div class="group__box">${list.filter((p) => p.fuentes.includes('minorista')).map(row).join('')}</div></div>
     <p class="group__hint">Fuente: <a href="${esc(S.promos?.fuente || '#')}" target="_blank" rel="noopener">Carrefour Banco</a>, actualizado ${esc((S.promos?.actualizado || '').split('-').reverse().join('/'))}. El monitor te avisa si cambian.</p>`);
 }
 
@@ -528,7 +530,7 @@ async function renderBuscar() {
   else if (sort === 'margin' && SET.kind === 'mayorista') {
     const r = await ensureRetail();
     items = items.filter((v) => r[v.ean]?.price).map((v) => ({ v, m: r[v.ean].price / v.price - 1 })).sort((a, b) => b.m - a.m).map((x) => x.v);
-    extra = (v) => ({ tags: [`<span class="tag tag--good">Reventa +${pct(r[v.ean].price / v.price - 1)}</span>`], reasons: [`En carrefour.com.ar sale ${ars(r[v.ean].price)}`] });
+    extra = (v) => ({ tags: [`<span class="tag tag--good">Reventa +${pct(r[v.ean].price / v.price - 1)}</span>`], reasons: [`En ${minName()} sale ${ars(r[v.ean].price)}`] });
   } else if (sort === 'drop') {
     const h = await ensureHistory(id);
     const t = Date.now() / 60000 - 7 * 1440;
@@ -597,7 +599,7 @@ function renderAjustes() {
   const cookies = st.cookies || [];
   const srcRows = S.manifest.map((s) => {
     const x = st.sources?.[s.id] || {};
-    return `<div class="srow"><div class="srow__label"><b>${s.kind === 'minorista' ? 'carrefour.com.ar' : `Maxi ${esc(title(s.name))}`}</b><span>${x.lastSuccess ? `Última lectura ${esc(ago(x.lastSuccess))} · ${fmt(x.products || 0)} productos` : 'Sin lecturas'}${x.lastError ? ` · ${esc(x.lastError)}` : ''}</span></div><span class="pill ${x.ok ? 'ok' : 'bad'}"><i></i>${x.ok ? 'Bien' : 'Con error'}</span></div>`;
+    return `<div class="srow"><div class="srow__label"><b>${s.kind === 'minorista' ? esc(minName()) : `Maxi ${esc(title(s.name))}`}</b><span>${x.lastSuccess ? `Última lectura ${esc(ago(x.lastSuccess))} · ${fmt(x.products || 0)} productos` : 'Sin lecturas'}${x.lastError ? ` · ${esc(x.lastError)}` : ''}</span></div><span class="pill ${x.ok ? 'ok' : 'bad'}"><i></i>${x.ok ? 'Bien' : 'Con error'}</span></div>`;
   }).join('');
   const runs = (st.runs || []).slice(0, 12).map((r) => `<tr><td>${esc(fmtDate(r.at))}</td><td>${Object.entries(r.results || {}).map(([id, x]) => `${esc(srcOf(id) ? (srcOf(id).kind === 'minorista' ? 'Web' : title(srcOf(id).name)) : id)} ${x.ok ? '✓' : '✗'}`).join(' · ')}</td><td>${r.ms ? `${Math.round(r.ms / 1000)} s` : ''}</td></tr>`).join('');
   $('#settingsBox').innerHTML = `<div class="set">
@@ -617,7 +619,7 @@ function renderAjustes() {
         <div class="srow"><label class="srow__label" for="s-minq"><b>Compra mínima hasta</b><span>Oculta productos que exigen llevar muchas unidades.</span></label>
           <select id="s-minq">${[0, 1, 3, 6, 12, 24].map((n) => `<option value="${n}" ${SET.maxMinQty === n ? 'selected' : ''}>${n ? `${n} u.` : 'Cualquiera'}</option>`).join('')}</select></div>
         ${toggleHtml('s-unseen', SET.hideUnseen, 'Ocultar sin stock', 'Productos que no aparecieron en la última lectura.')}
-        <div class="srow srow--stack"><div class="srow__label"><b>Categorías de ${kind === 'mayorista' ? 'Carrefour Maxi' : 'carrefour.com.ar'}</b><span>Tocá para ocultar o mostrar. Afecta ofertas, alertas, búsqueda y favoritos.</span></div>
+        <div class="srow srow--stack"><div class="srow__label"><b>Categorías de ${kind === 'mayorista' ? 'Carrefour Maxi' : esc(minName())}</b><span>Tocá para ocultar o mostrar. Afecta ofertas, alertas, búsqueda y favoritos.</span></div>
           <div class="cats">${Object.entries(sectors).sort((a, b) => a[0].localeCompare(b[0], 'es')).map(([s, n]) => `<button type="button" class="cat" data-cat="${esc(s)}" aria-pressed="${!hidden.includes(s)}">${esc(title(s))} <small>${fmt(n)}</small></button>`).join('')}</div>
           ${hidden.length ? '<div><button type="button" class="btn btn--ghost" data-act="showall">Mostrar todas</button></div>' : ''}</div>
       </div>
@@ -627,7 +629,7 @@ function renderAjustes() {
       <div class="group__box">
         <div class="srow srow--stack"><label class="srow__label" for="s-pct"><b>Descuento mínimo</b><span>Para descuentos, diferencias entre sucursales y contra Maxi.</span></label>
           <div class="range"><input id="s-pct" type="range" min="10" max="80" step="5" value="${SET.oppMinPct}"><output id="s-pct-o">${SET.oppMinPct}%</output></div></div>
-        <div class="srow srow--stack"><label class="srow__label" for="s-mg"><b>Margen mínimo de reventa</b><span>Diferencia entre Maxi y carrefour.com.ar.</span></label>
+        <div class="srow srow--stack"><label class="srow__label" for="s-mg"><b>Margen mínimo de reventa</b><span>Diferencia entre Maxi y ${esc(minName())}.</span></label>
           <div class="range"><input id="s-mg" type="range" min="20" max="200" step="5" value="${SET.oppMinMargin}"><output id="s-mg-o">${SET.oppMinMargin}%</output></div></div>
       </div>
     </section>
@@ -662,7 +664,7 @@ function renderAjustes() {
     </section>
 
     <section class="group"><h2>Descargas (Excel)</h2>
-      <div class="group__box"><div class="srow srow--stack"><div class="srow__label"><b>${SET.kind === 'mayorista' ? `Maxi ${esc(title(srcOf(SET.branch)?.name || ''))}` : 'carrefour.com.ar'}</b><span>Archivos CSV que se abren con Excel o Google Sheets.</span></div>
+      <div class="group__box"><div class="srow srow--stack"><div class="srow__label"><b>${SET.kind === 'mayorista' ? `Maxi ${esc(title(srcOf(SET.branch)?.name || ''))}` : esc(minName())}</b><span>Archivos CSV que se abren con Excel o Google Sheets.</span></div>
         <div class="actions"><button type="button" class="btn btn--ghost" data-dl="list">${icon('download')}Lista de precios</button><button type="button" class="btn btn--ghost" data-dl="history">${icon('download')}Historial completo</button><button type="button" class="btn btn--ghost" data-dl="opp">${icon('download')}Ofertas</button></div></div></div>
     </section>
 
@@ -762,7 +764,7 @@ async function openDetail(id, ean) {
       const x = dataOf(s.id).byEan.get(ean);
       return x ? { s, price: x.e ?? x.p, me: s.id === id } : null;
     }).filter(Boolean);
-    if (isMay && r?.price && !rows.some((x) => x.s.kind === 'minorista')) rows.push({ s: { id: 'web', kind: 'minorista', name: 'carrefour.com.ar' }, price: r.price });
+    if (isMay && r?.price && !rows.some((x) => x.s.kind === 'minorista')) rows.push({ s: { id: 'web', kind: 'minorista', name: minName() }, price: r.price });
     const tags = [...(v.promo ? [`<span class="tag tag--offer">${esc(v.promo)}</span>`] : []), ...(opp ? sigTags(opp.signals) : [])];
     const alerts = d.alerts.filter((a) => a.ean === ean).slice(0, 6);
     $('#sheetBody').innerHTML = `
@@ -783,7 +785,7 @@ async function openDetail(id, ean) {
         <button type="button" class="btn btn--ghost star" data-fav="${esc(id)}|${esc(ean)}" aria-pressed="${Boolean(FAVS[`${id}|${ean}`])}">${icon('star')}Favorito</button>
       </div>
       ${opp?.reasons?.length ? `<div class="d-sec"><h3>Por qué es oportunidad</h3><ul class="row__why">${opp.reasons.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
-      ${rows.length > 1 ? `<div class="d-sec"><h3>Comparación</h3><table class="cmp"><tbody>${rows.map((x) => `<tr class="${x.me ? 'me' : ''}"><td>${x.s.kind === 'minorista' ? 'carrefour.com.ar' : `Maxi ${esc(title(x.s.name))}`}</td><td>${ars(x.price)}</td><td>${x.me ? '' : `<span class="tag ${x.price > v.price ? 'tag--good' : 'tag--drop'}">${x.price > v.price ? '+' : '−'}${pct(Math.abs(x.price / v.price - 1))}</span>`}</td></tr>`).join('')}</tbody></table></div>` : ''}
+      ${rows.length > 1 ? `<div class="d-sec"><h3>Comparación</h3><table class="cmp"><tbody>${rows.map((x) => `<tr class="${x.me ? 'me' : ''}"><td>${x.s.kind === 'minorista' ? esc(minName()) : `Maxi ${esc(title(x.s.name))}`}</td><td>${ars(x.price)}</td><td>${x.me ? '' : `<span class="tag ${x.price > v.price ? 'tag--good' : 'tag--drop'}">${x.price > v.price ? '+' : '−'}${pct(Math.abs(x.price / v.price - 1))}</span>`}</td></tr>`).join('')}</tbody></table></div>` : ''}
       <div class="d-sec"><h3>Historial de precio</h3>
         ${chartHtml(series, r?.price)}
         <div class="kv"><div><span>Habitual 30 días</span><b>${ars(series.length ? refPrice(series) : null)}</b></div><div><span>Mínimo</span><b>${ars(vals.length ? Math.min(...vals) : null)}</b></div><div><span>Máximo</span><b>${ars(vals.length ? Math.max(...vals) : null)}</b></div></div>
@@ -791,7 +793,7 @@ async function openDetail(id, ean) {
         <div><button type="button" class="btn btn--ghost" data-dl="product">${icon('download')}Descargar historial</button></div>
       </div>
       ${alerts.length ? `<div class="d-sec"><h3>Alertas</h3><ul class="row__why">${alerts.map((a) => `<li><b>${esc(TYPE[a.type]?.label || a.type)}</b> · ${esc(fmtDate(a.ts))} · ${ars(a.price)} — ${esc((a.reasons || [])[0] || '')}</li>`).join('')}</ul></div>` : ''}
-      ${isMay ? '' : `<p class="group__hint" style="margin:0">${d.store ? `Precio de carrefour.com.ar en <b>${esc(d.store)}</b> (retiro en la tienda). Es el mismo que ves en la web con esa tienda elegida.` : 'Precio online general de carrefour.com.ar: si en la web elegís una tienda, puede ser distinto.'}</p>`}
+      ${isMay ? '' : `<p class="group__hint" style="margin:0">Precio de la tienda <b>${esc(minName())}</b>. Es el mismo que ves en la web de Carrefour con esa tienda elegida para retirar.</p>`}
       <p class="mono">${/^\d+$/.test(ean) ? `EAN ${esc(ean)} · ` : ''}${u ? `${ars(u.price)} por ${u.u} · ` : ''}visto ${esc(ago(v.l))}</p>`;
     if (series.length) drawChart(series, r?.price);
   };
@@ -822,7 +824,7 @@ function closeSheet() {
 async function share() {
   if (!detailCtx) return;
   const { id, ean, v } = detailCtx;
-  const where = v.kind === 'mayorista' ? `Maxi ${title(srcOf(id)?.name || '')}` : 'carrefour.com.ar';
+  const where = v.kind === 'mayorista' ? `Maxi ${title(srcOf(id)?.name || '')}` : minName();
   const url = `${location.origin}${location.pathname}#src=${encodeURIComponent(id)}&p=${encodeURIComponent(ean)}`;
   const text = `${title(v.name)} — ${ars(v.price)} en ${where}`;
   if (navigator.share) {

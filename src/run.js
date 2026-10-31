@@ -1,6 +1,6 @@
 // Una corrida completa con fuentes INDEPENDIENTES:
 //   🏪 MAYORISTA  comerciante.carrefour.com.ar — una por sucursal (una cookie por sucursal)
-//   🛒 MINORISTA  www.carrefour.com.ar (API pública, sin login)
+//   🛒 MINORISTA  precios de la tienda Hiper Gualeguaychú (carrefour.com.ar, sin login)
 // Si una falla, las otras siguen. Cada una guarda sus propios archivos y alertas.
 // Además calcula OPORTUNIDADES que no necesitan historial (descuento vs tachado,
 // diferencia entre sucursales, vs minorista, precio por kg).
@@ -46,8 +46,8 @@ const ONLY = (argv.find((a) => a.startsWith('--only=')) || '').split('=')[1] || 
 const MINORISTA = {
   id: 'min',
   kind: 'minorista',
-  name: 'carrefour.com.ar',
-  label: '🛒 MINORISTA · carrefour.com.ar',
+  name: config.minorista.storeName,
+  label: `🛒 MINORISTA · ${config.minorista.storeName}`,
   files: { products: 'min-products.json', history: 'min-history.json', alerts: 'min-alerts.json' },
   statePrefix: 'min:',
   rules: { ...config.rules, dropPct: config.minorista.dropPct, unitMultipack: true },
@@ -165,8 +165,8 @@ async function processSource(src, current, ctx) {
   const isMay = src.kind === 'mayorista';
   // Si cambió la tienda del minorista, los precios no son comparables: historial nuevo
   if (!isMay && prevProducts && (prevProducts.store || null) !== (ctx.store || null)) {
-    log.warn(`[min] Cambió la tienda (${prevProducts.store || 'online general'} → ${ctx.store || 'online general'}): el historial minorista empieza de nuevo.`);
-    warnings.push(`Ahora se leen los precios de ${ctx.store || 'la venta online general'}: el historial minorista empieza de nuevo.`);
+    log.warn(`[min] Los precios guardados no eran de ${ctx.store}: el historial minorista empieza de nuevo.`);
+    warnings.push(`Ahora se leen sólo los precios de ${ctx.store}: el historial minorista empieza de nuevo.`);
     return processSource(src, current, { ...ctx, reset: true, warnings });
   }
   let retailFresh = new Set();
@@ -269,7 +269,6 @@ async function readMinorista(db, nowIso) {
     db.retail[p.realEan] = { found: true, available: true, price: p.price, listPrice: p.listPrice, name: p.name, url: p.url, ts: nowIso };
   }
   const warnings = catalog.failed.length ? [`Subcategorías con error: ${catalog.failed.slice(0, 8).join(', ')}${catalog.failed.length > 8 ? '…' : ''}`] : [];
-  if (config.minorista.store && !catalog.store) warnings.push(`No se pudieron leer los precios de ${config.minorista.storeName}: se muestra el precio online general.`);
   return { current, warnings, store: catalog.store };
 }
 
