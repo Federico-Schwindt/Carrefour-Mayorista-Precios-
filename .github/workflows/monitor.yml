@@ -127,6 +127,8 @@ jobs:
         run: |
           mkdir -p _site/data
           cp -r web/. _site/
+          # Versión en los archivos: evita que el celular mezcle HTML nuevo con CSS/JS viejos en caché
+          sed -i "s/__V__/${GITHUB_SHA::7}/g" _site/index.html
           cp data/*.json _site/data/ 2>/dev/null || true
           rm -f _site/data/state.json
           touch _site/.nojekyll
