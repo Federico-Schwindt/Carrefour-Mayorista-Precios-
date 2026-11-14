@@ -1,0 +1,1708 @@
+{
+  "runs": [
+    {
+      "at": "2026-11-14T16:49:59.695Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4998,
+          "changes": 5,
+          "alerts": 20,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10237,
+          "changes": 13,
+          "alerts": 14,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1938,
+        "strong": 30,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 168891
+    },
+    {
+      "at": "2026-11-14T10:49:16.804Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4811,
+          "changes": 45,
+          "alerts": 50,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10168,
+          "changes": 219,
+          "alerts": 49,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1885,
+        "strong": 28,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 187659
+    },
+    {
+      "at": "2026-11-14T03:28:39.305Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4811,
+          "changes": 78,
+          "alerts": 72,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10061,
+          "changes": 9,
+          "alerts": 15,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1879,
+        "strong": 29,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 157479
+    },
+    {
+      "at": "2026-11-13T23:26:53.883Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4820,
+          "changes": 37,
+          "alerts": 18,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10069,
+          "changes": 1,
+          "alerts": 15,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1860,
+        "strong": 29,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 156473
+    },
+    {
+      "at": "2026-11-13T17:59:06.570Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4844,
+          "changes": 10,
+          "alerts": 12,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10102,
+          "changes": 23,
+          "alerts": 17,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1870,
+        "strong": 30,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 302126
+    },
+    {
+      "at": "2026-11-13T10:29:03.140Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4836,
+          "changes": 761,
+          "alerts": 236,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10069,
+          "changes": 83,
+          "alerts": 68,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1860,
+        "strong": 30,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 167381
+    },
+    {
+      "at": "2026-11-13T02:46:22.909Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4836,
+          "changes": 0,
+          "alerts": 1,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10046,
+          "changes": 0,
+          "alerts": 15,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1844,
+        "strong": 19,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 164287
+    },
+    {
+      "at": "2026-11-12T22:01:48.637Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4866,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10079,
+          "changes": 5,
+          "alerts": 15,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1848,
+        "strong": 18,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 150668
+    },
+    {
+      "at": "2026-11-12T15:53:13.529Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4909,
+          "changes": 8,
+          "alerts": 14,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10127,
+          "changes": 132,
+          "alerts": 84,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1863,
+        "strong": 18,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 168350
+    },
+    {
+      "at": "2026-11-12T06:58:41.096Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4738,
+          "changes": 258,
+          "alerts": 88,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10053,
+          "changes": 1383,
+          "alerts": 706,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1796,
+        "strong": 18,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 156869
+    },
+    {
+      "at": "2026-11-12T00:00:12.542Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4750,
+          "changes": 4,
+          "alerts": 12,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10030,
+          "changes": 2,
+          "alerts": 5,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1718,
+        "strong": 22,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 183647
+    },
+    {
+      "at": "2026-11-11T17:41:35.843Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4723,
+          "changes": 2,
+          "alerts": 5,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10017,
+          "changes": 23,
+          "alerts": 2,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1710,
+        "strong": 22,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 170686
+    },
+    {
+      "at": "2026-11-11T09:42:36.161Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4689,
+          "changes": 446,
+          "alerts": 65,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 9990,
+          "changes": 207,
+          "alerts": 35,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1712,
+        "strong": 23,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 156730
+    },
+    {
+      "at": "2026-11-11T02:07:30.193Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4693,
+          "changes": 1,
+          "alerts": 0,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 9955,
+          "changes": 2,
+          "alerts": 4,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1884,
+        "strong": 36,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 183156
+    },
+    {
+      "at": "2026-11-10T22:28:08.170Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4721,
+          "changes": 23,
+          "alerts": 16,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 9977,
+          "changes": 15,
+          "alerts": 8,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1892,
+        "strong": 35,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 176044
+    },
+    {
+      "at": "2026-11-10T17:13:43.672Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4591,
+          "changes": 3,
+          "alerts": 1,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 9903,
+          "changes": 57,
+          "alerts": 12,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1867,
+        "strong": 35,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 159541
+    },
+    {
+      "at": "2026-11-10T09:27:20.341Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4595,
+          "changes": 402,
+          "alerts": 198,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 9873,
+          "changes": 155,
+          "alerts": 49,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1867,
+        "strong": 34,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 169945
+    },
+    {
+      "at": "2026-11-10T01:57:45.006Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4588,
+          "changes": 20,
+          "alerts": 4,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 9951,
+          "changes": 1,
+          "alerts": 4,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1792,
+        "strong": 38,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 173395
+    },
+    {
+      "at": "2026-11-09T18:59:32.878Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4629,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 9997,
+          "changes": 39,
+          "alerts": 20,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1793,
+        "strong": 40,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 185964
+    },
+    {
+      "at": "2026-11-09T08:22:58.979Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4665,
+          "changes": 100,
+          "alerts": 26,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10020,
+          "changes": 433,
+          "alerts": 4,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1808,
+        "strong": 40,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 155060
+    },
+    {
+      "at": "2026-11-09T01:06:17.556Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4666,
+          "changes": 7,
+          "alerts": 7,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10026,
+          "changes": 4,
+          "alerts": 5,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2083,
+        "strong": 86,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 172093
+    },
+    {
+      "at": "2026-11-08T21:17:58.138Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4722,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10075,
+          "changes": 7,
+          "alerts": 5,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2100,
+        "strong": 86,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 164025
+    },
+    {
+      "at": "2026-11-08T17:11:40.427Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4755,
+          "changes": 5,
+          "alerts": 4,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10099,
+          "changes": 2,
+          "alerts": 4,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2115,
+        "strong": 86,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 180894
+    },
+    {
+      "at": "2026-11-08T11:26:03.467Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4684,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10133,
+          "changes": 14,
+          "alerts": 9,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2131,
+        "strong": 85,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 162833
+    },
+    {
+      "at": "2026-11-08T04:14:19.484Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4684,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10031,
+          "changes": 1,
+          "alerts": 4,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2108,
+        "strong": 85,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 148470
+    },
+    {
+      "at": "2026-11-07T23:47:30.866Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4690,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10047,
+          "changes": 0,
+          "alerts": 4,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2111,
+        "strong": 85,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 165768
+    },
+    {
+      "at": "2026-11-07T20:23:35.902Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4716,
+          "changes": 0,
+          "alerts": 1,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10082,
+          "changes": 7,
+          "alerts": 5,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2118,
+        "strong": 85,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 162210
+    },
+    {
+      "at": "2026-11-07T16:04:22.647Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4766,
+          "changes": 14,
+          "alerts": 18,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10127,
+          "changes": 9,
+          "alerts": 14,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2136,
+        "strong": 85,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 173850
+    },
+    {
+      "at": "2026-11-07T09:53:48.845Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4730,
+          "changes": 48,
+          "alerts": 43,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10042,
+          "changes": 35,
+          "alerts": 13,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2118,
+        "strong": 84,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 178424
+    },
+    {
+      "at": "2026-11-07T02:59:48.223Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4729,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 9500,
+          "changes": 23,
+          "alerts": 6,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2032,
+        "strong": 80,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 231197
+    },
+    {
+      "at": "2026-11-06T23:22:53.486Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4756,
+          "changes": 272,
+          "alerts": 50,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10061,
+          "changes": 22,
+          "alerts": 8,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2117,
+        "strong": 81,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 154839
+    },
+    {
+      "at": "2026-11-06T18:12:17.063Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4802,
+          "changes": 11,
+          "alerts": 6,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10095,
+          "changes": 30,
+          "alerts": 11,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2127,
+        "strong": 76,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 170987
+    },
+    {
+      "at": "2026-11-06T11:17:26.772Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4800,
+          "changes": 630,
+          "alerts": 196,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10076,
+          "changes": 411,
+          "alerts": 64,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2117,
+        "strong": 75,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 163987
+    },
+    {
+      "at": "2026-11-06T03:06:02.818Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4801,
+          "changes": 245,
+          "alerts": 21,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 7537,
+          "changes": 12,
+          "alerts": 1,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1838,
+        "strong": 50,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 169157
+    },
+    {
+      "at": "2026-11-05T22:45:32.181Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4849,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10175,
+          "changes": 20,
+          "alerts": 3,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2183,
+        "strong": 63,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 186640
+    },
+    {
+      "at": "2026-11-05T17:04:32.212Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4917,
+          "changes": 12,
+          "alerts": 10,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10256,
+          "changes": 102,
+          "alerts": 4,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2211,
+        "strong": 65,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 174411
+    },
+    {
+      "at": "2026-11-05T08:54:51.539Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4839,
+          "changes": 318,
+          "alerts": 82,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10202,
+          "changes": 687,
+          "alerts": 19,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2186,
+        "strong": 59,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 167505
+    },
+    {
+      "at": "2026-11-05T01:36:41.438Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4842,
+          "changes": 516,
+          "alerts": 34,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10204,
+          "changes": 6,
+          "alerts": 5,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2206,
+        "strong": 53,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 163527
+    },
+    {
+      "at": "2026-11-04T21:23:48.377Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4872,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10225,
+          "changes": 44,
+          "alerts": 31,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2231,
+        "strong": 53,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 161673
+    },
+    {
+      "at": "2026-11-04T15:02:59.726Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4915,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10264,
+          "changes": 261,
+          "alerts": 6,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2219,
+        "strong": 54,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 149984
+    },
+    {
+      "at": "2026-11-04T06:55:12.060Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4931,
+          "changes": 342,
+          "alerts": 99,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10257,
+          "changes": 369,
+          "alerts": 21,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2285,
+        "strong": 54,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 165071
+    },
+    {
+      "at": "2026-11-04T00:28:41.530Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4937,
+          "changes": 380,
+          "alerts": 3,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10263,
+          "changes": 6,
+          "alerts": 4,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2392,
+        "strong": 60,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 182326
+    },
+    {
+      "at": "2026-11-03T19:58:13.559Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 5015,
+          "changes": 0,
+          "alerts": 11,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10298,
+          "changes": 12,
+          "alerts": 16,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2268,
+        "strong": 62,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 186306
+    },
+    {
+      "at": "2026-11-03T12:55:57.548Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4969,
+          "changes": 1,
+          "alerts": 3,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10294,
+          "changes": 150,
+          "alerts": 16,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2255,
+        "strong": 60,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 169446
+    },
+    {
+      "at": "2026-11-03T05:12:22.840Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 4976,
+          "changes": 750,
+          "alerts": 128,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10304,
+          "changes": 63,
+          "alerts": 71,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2221,
+        "strong": 57,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 174260
+    },
+    {
+      "at": "2026-11-02T23:47:28.062Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 5008,
+          "changes": 61,
+          "alerts": 9,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10342,
+          "changes": 28,
+          "alerts": 71,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2327,
+        "strong": 44,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 192593
+    },
+    {
+      "at": "2026-11-02T16:48:34.173Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 5058,
+          "changes": 0,
+          "alerts": 2,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10385,
+          "changes": 282,
+          "alerts": 13,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2345,
+        "strong": 43,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 200346
+    },
+    {
+      "at": "2026-11-02T06:36:17.215Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 5075,
+          "changes": 575,
+          "alerts": 317,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10405,
+          "changes": 618,
+          "alerts": 304,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2327,
+        "strong": 42,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 163651
+    },
+    {
+      "at": "2026-11-02T00:11:37.267Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 5069,
+          "changes": 76,
+          "alerts": 3,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10407,
+          "changes": 15,
+          "alerts": 0,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1898,
+        "strong": 25,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 211808
+    },
+    {
+      "at": "2026-11-01T20:41:39.894Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 5112,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10422,
+          "changes": 26,
+          "alerts": 16,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1907,
+        "strong": 25,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 181347
+    },
+    {
+      "at": "2026-11-01T16:17:21.094Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 5151,
+          "changes": 0,
+          "alerts": 3,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10451,
+          "changes": 6,
+          "alerts": 0,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1890,
+        "strong": 25,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 158825
+    },
+    {
+      "at": "2026-11-01T09:30:12.082Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 5183,
+          "changes": 1,
+          "alerts": 0,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10461,
+          "changes": 52,
+          "alerts": 1,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1898,
+        "strong": 25,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 178060
+    },
+    {
+      "at": "2026-11-01T02:25:35.848Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 5183,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10460,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1906,
+        "strong": 25,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 174099
+    },
+    {
+      "at": "2026-10-31T23:02:27.346Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 5209,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10474,
+          "changes": 1,
+          "alerts": 0,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1913,
+        "strong": 25,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 175989
+    },
+    {
+      "at": "2026-10-31T19:41:26.194Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 5229,
+          "changes": 0,
+          "alerts": 16,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10458,
+          "changes": 1,
+          "alerts": 0,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1919,
+        "strong": 25,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 168955
+    },
+    {
+      "at": "2026-10-31T18:23:11.087Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 5115,
+          "changes": 0,
+          "alerts": 13,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10458,
+          "changes": 4,
+          "alerts": 0,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1895,
+        "strong": 25,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 191815
+    },
+    {
+      "at": "2026-10-31T18:14:21.749Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 5115,
+          "changes": 0,
+          "alerts": 3,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 10464,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1857,
+        "strong": 24,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 176995
+    },
+    {
+      "at": "2026-10-31T18:05:33.247Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 5121,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 3555,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 1098,
+        "strong": 9,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 156269
+    },
+    {
+      "at": "2026-10-31T17:57:00.539Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 5134,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 11555,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2052,
+        "strong": 22,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 102108
+    },
+    {
+      "at": "2026-10-31T17:53:17.336Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 5134,
+          "changes": 0,
+          "alerts": 8,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 11804,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2078,
+        "strong": 22,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 183755
+    },
+    {
+      "at": "2026-10-31T17:44:29.645Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 5134,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 11877,
+          "changes": 0,
+          "alerts": 2,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2074,
+        "strong": 20,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 220308
+    },
+    {
+      "at": "2026-10-31T16:55:01.783Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 5154,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 12671,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2169,
+        "strong": 24,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 181718
+    },
+    {
+      "at": "2026-10-31T16:40:02.979Z",
+      "results": {
+        "may-gualeguaychu": {
+          "ok": true,
+          "products": 5154,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        },
+        "min": {
+          "ok": true,
+          "products": 12674,
+          "changes": 0,
+          "alerts": 0,
+          "sent": 0
+        }
+      },
+      "opp": {
+        "total": 2168,
+        "strong": 24,
+        "sent": 0
+      },
+      "ok": true,
+      "ms": 123991
+    }
+  ],
+  "consecutiveFailures": 0,
+  "lastRun": "2026-11-14T16:49:59.695Z",
+  "sources": {
+    "min": {
+      "ok": true,
+      "label": "🛒 MINORISTA · Hiper Gualeguaychú",
+      "lastRun": "2026-11-14T16:52:48.505Z",
+      "lastSuccess": "2026-11-14T16:52:48.505Z",
+      "lastError": null,
+      "consecutiveFailures": 0,
+      "products": 10237,
+      "priceChanges": 13,
+      "warnings": [],
+      "categories": [
+        "161",
+        "222",
+        "255",
+        "292",
+        "336",
+        "347",
+        "359",
+        "402",
+        "451",
+        "471"
+      ],
+      "kind": "minorista",
+      "name": "Hiper Gualeguaychú",
+      "store": "Hiper Gualeguaychú"
+    },
+    "may-gualeguaychu": {
+      "kind": "mayorista",
+      "name": "GUALEGUAYCHU",
+      "label": "🏪 MAYORISTA · Maxi GUALEGUAYCHU",
+      "ok": true,
+      "lastRun": "2026-11-14T16:52:48.264Z",
+      "lastSuccess": "2026-11-14T16:52:48.264Z",
+      "lastError": null,
+      "consecutiveFailures": 0,
+      "products": 4998,
+      "priceChanges": 5,
+      "warnings": [],
+      "cookieVar": "CF_COOKIE",
+      "sessionSource": "CF_COOKIE"
+    }
+  },
+  "updatedAt": "2026-11-14T16:49:59.695Z",
+  "channels": {
+    "telegram": false,
+    "ntfy": false,
+    "discord": false
+  },
+  "intervalMinutes": 30,
+  "ok": true,
+  "cookies": [
+    {
+      "var": "CF_COOKIE",
+      "ok": true,
+      "branch": "GUALEGUAYCHU",
+      "source": "CF_COOKIE"
+    }
+  ],
+  "opportunities": {
+    "total": 1938,
+    "strong": 30,
+    "sent": 0
+  }
+}
